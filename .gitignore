@@ -108,3 +108,5 @@ typings/
 .dynamodb/
 
 _dist
+# Fresh build directory
+_fresh/
