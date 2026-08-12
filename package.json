@@ -1,0 +1,28 @@
+{
+  "name": "ischca-portfolio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/react": "latest",
+    "astro": "latest",
+    "motion": "13.0.0",
+    "react": "latest",
+    "react-dom": "latest",
+    "three": "0.185.1",
+    "troika-three-text": "0.53.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@types/three": "0.185.0",
+    "typescript": "^6.0.3"
+  },
+  "packageManager": "pnpm@11.2.1"
+}

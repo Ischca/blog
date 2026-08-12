@@ -1,0 +1,20 @@
+---
+const title = "Ischca — Software Engineer";
+---
+
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta http-equiv="refresh" content="0;url=./ja/" />
+    <title>{title}</title>
+    <script is:inline>
+      const locale = navigator.language.toLowerCase().startsWith("ja") ? "ja" : "en";
+      window.location.replace(`./${locale}/`);
+    </script>
+  </head>
+  <body>
+    <p><a href="./ja/">日本語</a> / <a href="./en/">English</a></p>
+  </body>
+</html>

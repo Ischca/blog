@@ -110,3 +110,7 @@ typings/
 _dist
 # Fresh build directory
 _fresh/
+
+# Astro
+.astro/
+dist/

@@ -1,0 +1,40 @@
+---
+import PortfolioLab from "../../components/PortfolioLab";
+import { siteContent, type Locale } from "../../content/site";
+import "../../styles/global.css";
+
+export function getStaticPaths() {
+  return [
+    { params: { lang: "ja" } },
+    { params: { lang: "en" } },
+  ];
+}
+
+const lang = Astro.params.lang as Locale;
+const content = siteContent[lang];
+const alternateLang = lang === "ja" ? "en" : "ja";
+const alternateLabel = lang === "ja" ? "English" : "日本語";
+const description = lang === "ja"
+  ? "バックエンドを軸に、プロダクト、クラウド、開発者ツールを横断するソフトウェアエンジニア、Ischcaのポートフォリオ。"
+  : "Ischca is a software engineer working across backend products, cloud infrastructure, and developer tools.";
+---
+
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#090d12" />
+    <link rel="alternate" hreflang={alternateLang} href={`../${alternateLang}/`} />
+    <title>Ischca — Software Engineer</title>
+  </head>
+  <body>
+    <PortfolioLab
+      client:load
+      locale={lang}
+      content={content}
+      alternateHref={`../${alternateLang}/`}
+      alternateLabel={alternateLabel}
+    />
+  </body>
+</html>

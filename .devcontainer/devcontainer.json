@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/debian
 {
-	"name": "Debian",
+	"name": "Ischca Portfolio",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"build": {
 		"dockerfile": "Dockerfile"
@@ -10,8 +10,7 @@
 		"vscode": {
 			"extensions": [
 				"eamodio.gitlens",
-				"denoland.vscode-deno",
-				"bradlc.vscode-tailwindcss"
+				"astro-build.astro-vscode"
 			]
 		}
 	}
