@@ -121,61 +121,15 @@ vec2 physicalPaperUv = vec2(
   1.0 - gl_FragCoord.y / max(1.0, uPhysicalResolution.y)
 );
 float physicalHeight = physicalReliefAt(physicalPaperUv);
-float physicalHeightL = physicalReliefAt(physicalPaperUv - vec2(uPhysicalPaperTexel.x, 0.0));
-float physicalHeightR = physicalReliefAt(physicalPaperUv + vec2(uPhysicalPaperTexel.x, 0.0));
-float physicalHeightU = physicalReliefAt(physicalPaperUv - vec2(0.0, uPhysicalPaperTexel.y));
-float physicalHeightD = physicalReliefAt(physicalPaperUv + vec2(0.0, uPhysicalPaperTexel.y));
-
-// The virtual lamp never follows the pointer: upper-left light belongs to the
-// desk, not the interaction. This gives both glyphs and drawn marks a common
-// material logic instead of a luminous UI effect.
-vec3 physicalPaperNormal = normalize(vec3(
-  (physicalHeightL - physicalHeightR) * 7.5,
-  (physicalHeightU - physicalHeightD) * 7.5,
-  1.0
-));
-vec3 physicalFixedLight = normalize(vec3(-0.52, 0.64, 0.82));
-float physicalPaperLight = dot(physicalPaperNormal, physicalFixedLight);
-
-float physicalSdfStep = 1.0 / max(32.0, uTroikaSDFGlyphSize);
-vec2 physicalGlyphUv = clamp(
-  vTroikaGlyphUV,
-  vec2(physicalSdfStep),
-  vec2(1.0 - physicalSdfStep)
-);
-float physicalDistL = troikaGlyphUvToDistance(physicalGlyphUv - vec2(physicalSdfStep, 0.0));
-float physicalDistR = troikaGlyphUvToDistance(physicalGlyphUv + vec2(physicalSdfStep, 0.0));
-float physicalDistU = troikaGlyphUvToDistance(physicalGlyphUv + vec2(0.0, physicalSdfStep));
-float physicalDistD = troikaGlyphUvToDistance(physicalGlyphUv - vec2(0.0, physicalSdfStep));
-vec2 physicalEdgeNormal = normalize(vec2(
-  physicalDistR - physicalDistL,
-  physicalDistU - physicalDistD
-) + vec2(0.00001));
-float physicalNibLight = dot(physicalEdgeNormal, normalize(vec2(-0.64, 0.77)));
-float physicalAa = max(troikaGetAADist(), 0.18);
-float physicalEdgeBand = exp(-abs(fragDistance) / (physicalAa * 2.65 + 0.16));
-float physicalInside = 1.0 - smoothstep(-physicalAa * 3.5, physicalAa * 1.5, fragDistance);
 float physicalPressed = clamp(uPhysicalPressure, 0.0, 1.0);
-
-// Opposing edge tones describe a shallow incision. The amplitude is kept low:
-// this is pigment pressed into skin, never bevelled chrome or a neon halo.
-float physicalRidge = max(0.0, physicalNibLight) * physicalEdgeBand;
-float physicalValley = max(0.0, -physicalNibLight) * physicalEdgeBand;
-float physicalIndentShade =
-  physicalRidge * (0.026 + physicalPressed * 0.044) -
-  physicalValley * (0.034 + physicalPressed * 0.058) -
-  physicalInside * physicalPressed * 0.018;
-
 float physicalPore = smoothstep(0.22, 0.82, physicalHeight);
 float physicalRunVariation = fract(sin(uPhysicalSeed * 17.137 + 4.71) * 43758.5453);
 float physicalUptake = mix(1.0 - uPhysicalAbsorption * 0.085, 1.0, physicalPore);
 physicalUptake *= mix(0.985, 1.0, physicalRunVariation);
-float physicalSurfaceShade = (physicalPaperLight - 0.70) * 0.035;
-gl_FragColor.rgb *= clamp(
-  1.0 + physicalIndentShade + physicalSurfaceShade - physicalPressed * 0.025,
-  0.78,
-  1.09
-);
+// This pass only produces the pigment/pressure mask. Lighting and the actual
+// height discontinuity are applied later by PhysicalParchmentRenderer, once,
+// to the combined paper + ink field.
+gl_FragColor.rgb *= 1.0 - physicalPressed * 0.025;
 gl_FragColor.a *= clamp(
   physicalUptake * mix(0.94, 1.0, physicalPressed),
   0.72,
@@ -268,7 +222,7 @@ export class PhysicalInkTextRenderer {
       alpha: true,
       antialias: true,
       premultipliedAlpha: true,
-      preserveDrawingBuffer: true,
+      preserveDrawingBuffer: false,
       powerPreference: "high-performance",
     });
     this.renderer.setClearColor(0x000000, 0);
@@ -304,9 +258,10 @@ export class PhysicalInkTextRenderer {
       const canvas = document.createElement("canvas");
       canvas.setAttribute("aria-hidden", "true");
       return new PhysicalInkTextRenderer(canvas, three, troika, options);
-    } catch {
+    } catch (error) {
       // Canvas2D remains the caller's progressive fallback. A missing WebGL
       // context or blocked dynamic chunk must never take the parchment down.
+      console.warn("Physical ink text renderer is unavailable; using Canvas2D.", error);
       return null;
     }
   }
@@ -314,10 +269,7 @@ export class PhysicalInkTextRenderer {
   static isSupported(): boolean {
     if (typeof window === "undefined" || typeof document === "undefined") return false;
     const probe = document.createElement("canvas");
-    return Boolean(
-      probe.getContext("webgl2", { failIfMajorPerformanceCaveat: true })
-      || probe.getContext("webgl", { failIfMajorPerformanceCaveat: true }),
-    );
+    return Boolean(probe.getContext("webgl2") || probe.getContext("webgl"));
   }
 
   /** False tells the caller to keep using its Canvas2D text fallback. */
@@ -409,8 +361,8 @@ export class PhysicalInkTextRenderer {
 
   /**
    * Immediate-mode bridge for CanvasGrimoireExperience. The returned canvas has
-   * physical-pixel dimensions and a preserved transparent framebuffer, ready
-   * for `CanvasRenderingContext2D.drawImage` in the same frame.
+   * physical-pixel dimensions and a transparent framebuffer, ready for an
+   * immediate `CanvasRenderingContext2D.drawImage` in the same frame.
    */
   renderFrame(
     runs: readonly PhysicalInkTextRun[],
@@ -635,8 +587,7 @@ function upgradeInkShader(shader: InkShader, uniforms: InkUniforms): void {
   shader.uniforms.uPhysicalSeed = uniforms.seed;
   shader.uniforms.uPhysicalSlant = uniforms.slant;
 
-  shader.vertexShader = shader.vertexShader
-    .replace(/void\s+main\s*\(\s*\)\s*\{/, "uniform float uPhysicalSlant;\n$&")
+  shader.vertexShader = `uniform float uPhysicalSlant;\n${shader.vertexShader}`
     .replace(
       "position = uTroikaOrient * position;",
       "position = uTroikaOrient * position;\nposition.x += position.y * uPhysicalSlant;",

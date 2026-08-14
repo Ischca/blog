@@ -7,7 +7,6 @@ import {
   useState,
 } from "react";
 import type {
-  CSSProperties,
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
 } from "react";
@@ -16,18 +15,35 @@ import {
   PhysicalInkTextRenderer,
   type PhysicalInkTextRun,
 } from "./grimoire/PhysicalInkTextRenderer";
+import { PhysicalParchmentRenderer } from "./grimoire/PhysicalParchmentRenderer";
+import {
+  VersoExplodedView,
+  type VersoPhase,
+  type VersoTracePoint,
+} from "./grimoire/VersoExplodedView";
 
 type ViewId = "home" | "work" | "career" | "products" | "contact";
 type InkPoint = { x: number; y: number; width: number; time: number };
 type CanvasSize = { width: number; height: number; dpr: number };
 type Cast = { x: number; y: number; name: string; serial: number };
+type PalimpsestState = { from: number; to: number; progress: number };
+type Octagram = { x: number; y: number; radius: number; rotation: number; serial: number };
+type RitualState = {
+  stage: "idle" | "summoned" | "unsealed";
+  sigil: Octagram | null;
+  mechanismPhase: number;
+  guideOpacity: number;
+};
 type VisualState = {
   active: number;
   chapterPhase: number;
+  palimpsest: PalimpsestState;
   magicPhase: number;
   awakened: boolean;
   points: InkPoint[];
+  ritualStrokes: InkPoint[][];
   cast: Cast;
+  ritual: RitualState;
 };
 type ActionSpot = {
   label: string;
@@ -42,8 +58,11 @@ const VIEW_IDS: ViewId[] = ["home", "work", "career", "products", "contact"];
 const ROMAN = ["I", "II", "III", "IV", "V"];
 const INK = "#2d1c13";
 const INK_SOFT = "rgba(53, 31, 20, .72)";
-const INK_FAINT = "rgba(58, 34, 21, .34)";
 const AWAKENED_INK = "#5b2d24";
+const PUBLIC_BASE = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const assetUrl = (path: string) => `${PUBLIC_BASE}${path.replace(/^\/+/, "")}`;
 
 const SOCIAL_LINKS = [
   { label: "GitHub", href: "https://github.com/Ischca" },
@@ -54,16 +73,35 @@ const SOCIAL_LINKS = [
 
 const COPY = {
   ja: {
-    volume: "技術者の記録 · 二〇一六—",
-    title: "仕組みをつくり、\n長く生かすための書。",
+    volume: "ARCHIVUM ISCHCA · 二〇一六—",
+    title: "仕組みをつくり、\n長く生かすための記録。",
     home: "序文",
-    work: "依頼できる仕事",
-    career: "これまでの経歴",
-    products: "制作したもの",
-    contact: "連絡のための余白",
+    work: "委嘱",
+    career: "遍歴",
+    products: "工房",
+    contact: "書簡",
+    workTitle: "引き受けられる仕事",
+    careerTitle: "これまでの遍歴",
+    productsTitle: "工房でつくったもの",
+    contactTitle: "書簡を送る",
     homeCopy:
       "バックエンド、データ、クラウド、そして個人でつくる道具。ここには、仕事と制作のあいだで積み重ねてきた記録を収めています。",
     maxim: "複雑さは隠さず、扱える形までほどいていく。",
+    commissionIntro: "すでに動いている仕組みを読み解き、止めずに直す仕事を中心に引き受けています。",
+    careerIntro: "期間、役割、実際に担ったことを、現在から始まりまで遡って記します。",
+    productsIntro: "仕様から実装、使うところまで、自分の手で育てている二つの道具。",
+    fit: "向く相談",
+    scope: "担う範囲",
+    outcome: "手渡すもの",
+    tools: "用いる技術",
+    purpose: "この道具のねらい",
+    letterOpening: "条件が合いそうなら、まずはテキストでお声がけください。",
+    signature: "— Ischca",
+    scroll: "スクロールすると、表層の筆跡が削られ、次の記録が現れる",
+    circleReady: "円が閉じた。筆を離してよい。錆色の星の線をすべてなぞれば、封が解ける。",
+    mechanismOpen: "八芒星の封が解け、羊皮紙の下の機構が動き始めた。",
+    traceStar: "筆を離してもよい。錆色の線をすべてなぞる",
+    harmlessMechanism: "これは余白の遊び。記録を隠す封ではない。",
     draw: "余白へ線を刻むと、伏せられたインクが目を覚ます",
     awake: "不可視の墨が現れた",
     keyboard: "章はローマ数字、または左右キーで選べます。",
@@ -73,31 +111,50 @@ const COPY = {
     hidden: "線は命令ではない。紙が覚えていた形を、ただ呼び戻す。",
   },
   en: {
-    volume: "AN ENGINEER'S RECORD · MMXVI—",
-    title: "Systems made to remain\nuseful after their making.",
-    home: "Preface",
-    work: "Work I take on",
-    career: "Career record",
-    products: "Things made",
-    contact: "A margin for correspondence",
+    volume: "THE PRIVATE BOOK OF ISCHCA · BEGUN MMXVI",
+    title: "Of Systems, Instruments,\nand Their Long Keeping",
+    home: "Frontispiece",
+    work: "Commissions",
+    career: "Chronicle",
+    products: "Instruments",
+    contact: "Correspondence",
+    workTitle: "Of Works That May Be Commissioned",
+    careerTitle: "A Chronicle of Service",
+    productsTitle: "Instruments of the Workshop",
+    contactTitle: "Concerning Correspondence",
     homeCopy:
-      "Backend systems, data, cloud infrastructure, and independently made tools. These leaves hold a record of the work accumulated between practice and making.",
-    maxim: "Do not hide complexity. Unbind it until it can be handled.",
-    draw: "Inscribe a line in the margin to wake the ink beneath it",
-    awake: "The invisible ink has appeared",
-    keyboard: "Choose a chapter by its Roman numeral or with the arrow keys.",
+      "Here are entered the systems tended, the faults unbound, and the instruments made in the course of an engineer's practice.",
+    maxim: "Complexity is not to be hidden, but patiently unbound until it may be handled.",
+    commissionIntro: "Chiefly accepted are works that require an existing system to be read with care, amended without interruption, and left intelligible to those who follow.",
+    careerIntro: "An account of offices held and works undertaken, read backward from the present leaf to the first.",
+    productsIntro: "Two instruments kept under continual study, from their first specification to their daily use.",
+    fit: "the matter suited",
+    scope: "the undertaking",
+    outcome: "the work delivered",
+    tools: "the implements",
+    purpose: "the instrument's intent",
+    letterOpening: "Should the matter and manner appear well matched, a written note is the proper beginning.",
+    signature: "— Ischca",
+    scroll: "Scroll, and the upper hand is scraped away to disclose the next record",
+    circleReady: "The circle holds. The quill may be lifted; trace every rusted chord to break the seal.",
+    mechanismOpen: "The octagram is unsealed. The instrument beneath the vellum is moving.",
+    traceStar: "The quill may be lifted. Trace every rusted chord",
+    harmlessMechanism: "A diversion in the margin; no record is sealed behind it.",
+    draw: "Draw upon the skin; the buried hand will answer",
+    awake: "The buried hand answers",
+    keyboard: "Turn the record by its Roman numeral, or by the arrow keys.",
     folio: "fol.",
     productLink: "follow the mark",
-    correspondence: "If the conditions fit, begin with a written note.",
-    hidden: "The line is no command. It only recalls a figure the skin remembered.",
+    correspondence: "Should the matter fit, begin with a written note.",
+    hidden: "The mark gives no command. It recalls only what the skin was made to remember.",
   },
 } as const;
 
 const FONT_JA = '"Ischca Yuji Syuku", "YuMincho", "Hiragino Mincho ProN", serif';
-const FONT_EN = '"Ischca Yuji Syuku", "Iowan Old Style", "Baskerville", Georgia, serif';
+const FONT_EN = '"Ischca IM Fell English", "Iowan Old Style", "Baskerville", Georgia, serif';
 const FONT_HAND_JA = '"Ischca Yuji Syuku", "YuMincho", "Hiragino Mincho ProN", serif';
-const FONT_HAND_EN = '"Ischca Yuji Syuku", "Iowan Old Style", "Baskerville", Georgia, serif';
-const FONT_REFERENCE = '"Ischca Noto Serif JP", "YuMincho", "Hiragino Mincho ProN", serif';
+const FONT_HAND_EN = '"Ischca Fondamento", "Apple Chancery", cursive';
+const FONT_REFERENCE = '"Ischca IM Fell English SC", "Iowan Old Style", "Baskerville", Georgia, serif';
 
 type InkTextCollection = {
   runs: PhysicalInkTextRun[];
@@ -115,15 +172,19 @@ type MaterialLayer = {
   textureVersion: number;
 };
 type InkSurfaceLayer = MaterialLayer & {
+  albedo: HTMLCanvasElement;
   absorption: HTMLCanvasElement;
+  capillary: HTMLCanvasElement[];
   relief: HTMLCanvasElement;
   grooves: HTMLCanvasElement;
   surface: HTMLCanvasElement;
+  glyph: HTMLCanvasElement;
 };
 
 // The skin is a material, not an animation. Baking it once keeps inscription
 // latency independent from the hundreds of fibres and pores in the surface.
 const MATERIAL_LAYERS = new WeakMap<HTMLCanvasElement, MaterialLayer>();
+const DESK_LAYERS = new WeakMap<HTMLCanvasElement, MaterialLayer>();
 const INK_SURFACE_LAYERS = new WeakMap<HTMLCanvasElement, InkSurfaceLayer>();
 let vellumTexture: HTMLImageElement | null = null;
 let vellumTextureVersion = 0;
@@ -151,7 +212,7 @@ function loadVellumTexture(onReady: () => void) {
     vellumTextureRetries += 1;
     window.setTimeout(() => loadVellumTexture(onReady), vellumTextureRetries * 900);
   }, { once: true });
-  image.src = "/textures/vellum-aged-v1.webp";
+  image.src = assetUrl("textures/vellum-aged-v1.webp");
 }
 
 function hash(seed: number) {
@@ -159,8 +220,26 @@ function hash(seed: number) {
   return value - Math.floor(value);
 }
 
+function valueNoise(x: number, y: number, seed: number) {
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const tx = x - x0;
+  const ty = y - y0;
+  const sx = tx * tx * (3 - 2 * tx);
+  const sy = ty * ty * (3 - 2 * ty);
+  const at = (px: number, py: number) => hash(seed + px * 127.1 + py * 311.7);
+  const top = at(x0, y0) * (1 - sx) + at(x0 + 1, y0) * sx;
+  const bottom = at(x0, y0 + 1) * (1 - sx) + at(x0 + 1, y0 + 1) * sx;
+  return top * (1 - sy) + bottom * sy;
+}
+
 function clamp(minimum: number, value: number, maximum: number) {
   return Math.max(minimum, Math.min(maximum, value));
+}
+
+function smoothstep(edge0: number, edge1: number, value: number) {
+  const progress = clamp(0, (value - edge0) / Math.max(0.0001, edge1 - edge0), 1);
+  return progress * progress * (3 - 2 * progress);
 }
 
 function font(locale: Locale, size: number, weight = 400, italic = false) {
@@ -331,6 +410,7 @@ function drawRoughHeading(
   size: number,
   locale: Locale,
   lineHeight = size * 1.28,
+  maxWidth?: number,
 ) {
   context.save();
   context.font = font(locale, size, 400);
@@ -341,6 +421,7 @@ function drawRoughHeading(
       pressure: 0.68,
       absorption: 0.72,
       seed: 47 + lineIndex * 31,
+      maxWidth,
     });
   });
   context.restore();
@@ -647,6 +728,62 @@ function drawParchment(context: CanvasRenderingContext2D, width: number, height:
   context.restore();
 }
 
+function drawParchmentAlbedo(context: CanvasRenderingContext2D, width: number, height: number) {
+  const path = paperPath(width, height);
+  const bounds = paperBounds(width, height);
+  context.save();
+  context.clip(path);
+
+  // Keep directional light out of the albedo. The Three.js surface shader is
+  // the only place where a lamp is applied, so paper and ink cannot disagree.
+  const base = context.createLinearGradient(bounds.x, bounds.y, bounds.x + bounds.width, bounds.y + bounds.height);
+  base.addColorStop(0, "#f4f0e7");
+  base.addColorStop(0.28, "#eee8dc");
+  base.addColorStop(0.58, "#f6f2e9");
+  base.addColorStop(0.84, "#ebe3d6");
+  base.addColorStop(1, "#e3d9c8");
+  context.fillStyle = base;
+  context.fillRect(bounds.x - 8, bounds.y - 8, bounds.width + 16, bounds.height + 16);
+
+  // Uneven skin thickness changes colour slowly, independently of the fixed
+  // light that will later reveal its height.
+  for (let index = 0; index < 14; index += 1) {
+    const x = bounds.x + hash(index + 5101) * bounds.width;
+    const y = bounds.y + hash(index + 5129) * bounds.height;
+    const radius = (0.08 + hash(index + 5153) * 0.2) * Math.max(bounds.width, bounds.height);
+    const warm = hash(index + 5171) > 0.48;
+    const cloud = context.createRadialGradient(x, y, 0, x, y, radius);
+    cloud.addColorStop(0, warm ? "rgba(151,112,69,.035)" : "rgba(105,112,102,.024)");
+    cloud.addColorStop(1, "rgba(255,255,255,0)");
+    context.fillStyle = cloud;
+    context.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+  }
+
+  context.globalCompositeOperation = "multiply";
+  for (let index = 0; index < 110; index += 1) {
+    const x = bounds.x + hash(index + 5219) * bounds.width;
+    const y = bounds.y + hash(index + 5237) * bounds.height;
+    const length = 10 + hash(index + 5261) * 92;
+    context.strokeStyle = `rgba(84,57,35,${0.008 + hash(index + 5279) * 0.018})`;
+    context.lineWidth = 0.22 + hash(index + 5303) * 0.5;
+    context.beginPath();
+    context.moveTo(x, y);
+    context.quadraticCurveTo(
+      x + length * 0.48,
+      y + (hash(index + 5323) - 0.5) * 9,
+      x + length,
+      y + (hash(index + 5347) - 0.5) * 5,
+    );
+    context.stroke();
+  }
+
+  // Oxidation is material colour, not a fake all-around burn shadow.
+  context.strokeStyle = "rgba(84,56,34,.075)";
+  context.lineWidth = width < 700 ? 10 : 16;
+  context.stroke(path);
+  context.restore();
+}
+
 function materialLayer(canvas: HTMLCanvasElement, size: CanvasSize) {
   const cached = MATERIAL_LAYERS.get(canvas);
   if (
@@ -669,6 +806,73 @@ function materialLayer(canvas: HTMLCanvasElement, size: CanvasSize) {
   return layer;
 }
 
+function deskLayer(canvas: HTMLCanvasElement, size: CanvasSize) {
+  const cached = DESK_LAYERS.get(canvas);
+  if (
+    cached
+    && cached.width === size.width
+    && cached.height === size.height
+    && cached.dpr === size.dpr
+  ) return cached.canvas;
+
+  const layer = document.createElement("canvas");
+  layer.width = Math.max(1, Math.round(size.width * size.dpr));
+  layer.height = Math.max(1, Math.round(size.height * size.dpr));
+  const context = layer.getContext("2d");
+  if (!context) return layer;
+  context.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
+  drawDesk(context, size.width, size.height);
+  DESK_LAYERS.set(canvas, { canvas: layer, ...size, textureVersion: 0 });
+  return layer;
+}
+
+function buildCapillaryMasks(width: number, height: number, paperAbsorption: HTMLCanvasElement) {
+  const levels = 24;
+  const scale = Math.min(0.36, 420 / Math.max(1, width), 300 / Math.max(1, height));
+  const fieldWidth = Math.max(96, Math.round(width * scale));
+  const fieldHeight = Math.max(96, Math.round(height * scale));
+  const sample = document.createElement("canvas");
+  sample.width = fieldWidth;
+  sample.height = fieldHeight;
+  const sampleContext = sample.getContext("2d", { willReadFrequently: true });
+  const absorptionAlpha = new Uint8ClampedArray(fieldWidth * fieldHeight);
+  if (sampleContext) {
+    sampleContext.drawImage(paperAbsorption, 0, 0, fieldWidth, fieldHeight);
+    const pixels = sampleContext.getImageData(0, 0, fieldWidth, fieldHeight).data;
+    for (let index = 0; index < absorptionAlpha.length; index += 1) {
+      absorptionAlpha[index] = pixels[index * 4 + 3];
+    }
+  }
+
+  const field = new Float32Array(fieldWidth * fieldHeight);
+  for (let y = 0; y < fieldHeight; y += 1) {
+    for (let x = 0; x < fieldWidth; x += 1) {
+      const index = y * fieldWidth + x;
+      const macro = valueNoise(x / 24, y / 24, 1801);
+      const meso = valueNoise(x / 8.5, y / 11.5, 1877);
+      const fibre = 0.5 + Math.sin(x * 0.19 + y * 0.045 + valueNoise(x / 38, y / 29, 1931) * 4.2) * 0.5;
+      const paperPore = absorptionAlpha[index] / 255;
+      field[index] = clamp(0.035, 0.07 + macro * 0.57 + meso * 0.22 + fibre * 0.18 - paperPore * 0.31, 0.965);
+    }
+  }
+
+  return Array.from({ length: levels }, (_, level) => {
+    const mask = document.createElement("canvas");
+    mask.width = fieldWidth;
+    mask.height = fieldHeight;
+    const context = mask.getContext("2d");
+    if (!context) return mask;
+    const image = context.createImageData(fieldWidth, fieldHeight);
+    const strength = level / (levels - 1);
+    for (let index = 0; index < field.length; index += 1) {
+      const coverage = smoothstep(field[index] - 0.075, field[index] + 0.075, strength);
+      image.data[index * 4 + 3] = Math.round(coverage * 255);
+    }
+    context.putImageData(image, 0, 0);
+    return mask;
+  });
+}
+
 function inkSurfaceLayer(canvas: HTMLCanvasElement, size: CanvasSize) {
   const cached = INK_SURFACE_LAYERS.get(canvas);
   if (
@@ -680,21 +884,74 @@ function inkSurfaceLayer(canvas: HTMLCanvasElement, size: CanvasSize) {
   ) return cached;
 
   const layer = document.createElement("canvas");
+  const albedo = document.createElement("canvas");
   const absorption = document.createElement("canvas");
   const relief = document.createElement("canvas");
   const grooves = document.createElement("canvas");
   const surface = document.createElement("canvas");
-  layer.width = absorption.width = relief.width = grooves.width = surface.width = Math.max(1, Math.round(size.width * size.dpr));
-  layer.height = absorption.height = relief.height = grooves.height = surface.height = Math.max(1, Math.round(size.height * size.dpr));
+  const glyph = document.createElement("canvas");
+  layer.width = albedo.width = absorption.width = relief.width = grooves.width = surface.width = glyph.width = Math.max(1, Math.round(size.width * size.dpr));
+  layer.height = albedo.height = absorption.height = relief.height = grooves.height = surface.height = glyph.height = Math.max(1, Math.round(size.height * size.dpr));
 
+  const albedoContext = albedo.getContext("2d");
   const surfaceContext = surface.getContext("2d");
   const bounds = paperBounds(size.width, size.height);
   const surfaceRelief = vellumReliefMap(bounds);
-  if (surfaceContext && surfaceRelief) {
+  if (albedoContext) {
+    albedoContext.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
+    drawParchmentAlbedo(albedoContext, size.width, size.height);
+  }
+  if (surfaceContext) {
     surfaceContext.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
     surfaceContext.save();
     surfaceContext.clip(paperPath(size.width, size.height));
-    surfaceContext.drawImage(surfaceRelief, bounds.x, bounds.y, bounds.width, bounds.height);
+    surfaceContext.fillStyle = "rgb(128,128,128)";
+    surfaceContext.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+    if (surfaceRelief) {
+      surfaceContext.globalAlpha = size.width < 700 ? 0.16 : 0.24;
+      surfaceContext.filter = `blur(${size.width < 700 ? 0.7 : 1}px)`;
+      surfaceContext.drawImage(surfaceRelief, bounds.x, bounds.y, bounds.width, bounds.height);
+      surfaceContext.filter = "none";
+      surfaceContext.globalAlpha = 1;
+    }
+
+    // Broad stretched-skin undulations and a few raised folds live in the
+    // actual height field. They displace the mesh; fine photographic fibres
+    // above remain fragment-level normals.
+    for (let index = 0; index < 8; index += 1) {
+      const x = bounds.x + hash(index + 6101) * bounds.width;
+      const y = bounds.y + hash(index + 6131) * bounds.height;
+      const radius = (0.12 + hash(index + 6151) * 0.22) * Math.max(bounds.width, bounds.height);
+      const heightValue = 112 + Math.round(hash(index + 6173) * 34);
+      const hill = surfaceContext.createRadialGradient(x, y, 0, x, y, radius);
+      hill.addColorStop(0, `rgba(${heightValue},${heightValue},${heightValue},.2)`);
+      hill.addColorStop(1, "rgba(128,128,128,0)");
+      surfaceContext.fillStyle = hill;
+      surfaceContext.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+    }
+    const folds = [
+      [0.06, 0.71, 0.47, 0.7, 0.78, 0.76],
+      [0.7, 0.08, 0.76, 0.4, 0.72, 0.69],
+      [0.19, 0.18, 0.46, 0.25, 0.63, 0.2],
+    ] as const;
+    surfaceContext.save();
+    surfaceContext.globalCompositeOperation = "screen";
+    surfaceContext.filter = `blur(${size.width < 700 ? 5 : 8}px)`;
+    surfaceContext.strokeStyle = "rgba(211,211,211,.26)";
+    surfaceContext.lineCap = "round";
+    surfaceContext.lineWidth = size.width < 700 ? 12 : 18;
+    folds.forEach(([sx, sy, cx, cy, ex, ey]) => {
+      surfaceContext.beginPath();
+      surfaceContext.moveTo(bounds.x + bounds.width * sx, bounds.y + bounds.height * sy);
+      surfaceContext.quadraticCurveTo(
+        bounds.x + bounds.width * cx,
+        bounds.y + bounds.height * cy,
+        bounds.x + bounds.width * ex,
+        bounds.y + bounds.height * ey,
+      );
+      surfaceContext.stroke();
+    });
+    surfaceContext.restore();
     surfaceContext.restore();
   }
   const mask = absorption.getContext("2d");
@@ -771,76 +1028,17 @@ function inkSurfaceLayer(canvas: HTMLCanvasElement, size: CanvasSize) {
     }
     mask.restore();
   }
-  const next = { canvas: layer, absorption, relief, grooves, surface, ...size, textureVersion: vellumTextureVersion };
+  const capillary = buildCapillaryMasks(size.width, size.height, absorption);
+  const next = { canvas: layer, albedo, absorption, capillary, relief, grooves, surface, glyph, ...size, textureVersion: vellumTextureVersion };
   INK_SURFACE_LAYERS.set(canvas, next);
   return next;
-}
-
-function navPositions(width: number, height: number) {
-  const narrow = width < 700;
-  if (narrow) {
-    return [
-      { x: width * 0.105, y: height * 0.105, angle: -0.14 },
-      { x: width * 0.095, y: height * 0.83, angle: 0.1 },
-      { x: width * 0.895, y: height * 0.145, angle: 0.08 },
-      { x: width * 0.69, y: height * 0.915, angle: -0.08 },
-      { x: width * 0.91, y: height * 0.735, angle: 0.13 },
-    ];
-  }
-  return [
-    { x: width * 0.076, y: height * 0.16, angle: -0.18 },
-    { x: width * 0.13, y: height * 0.82, angle: 0.1 },
-    { x: width * 0.91, y: height * 0.19, angle: 0.11 },
-    { x: width * 0.73, y: height * 0.91, angle: -0.08 },
-    { x: width * 0.938, y: height * 0.69, angle: 0.15 },
-  ];
-}
-
-function drawNavigation(
-  context: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  locale: Locale,
-  labels: string[],
-  active: number,
-  awakened: boolean,
-) {
-  const positions = navPositions(width, height);
-  const narrow = width < 700;
-  positions.forEach((position, index) => {
-    context.save();
-    context.translate(position.x, position.y);
-    context.rotate(position.angle);
-    context.font = font(locale, active === index ? (narrow ? 25 : 29) : (narrow ? 19 : 21), 400);
-    drawInkLine(context, ROMAN[index], 0, 0, {
-      align: "center",
-      color: active === index && awakened ? AWAKENED_INK : INK,
-      alpha: active === index ? 0.95 : 0.57,
-    });
-    context.font = `${narrow ? 8 : 9}px ${locale === "ja" ? FONT_JA : FONT_EN}`;
-    const labelY = index === 3 ? -18 : 17;
-    drawInkLine(context, labels[index], 0, labelY, {
-      align: "center",
-      alpha: active === index ? 0.62 : 0.33,
-      maxWidth: narrow ? 72 : 92,
-    });
-    if (active === index) {
-      context.strokeStyle = awakened ? "rgba(107,37,29,.48)" : "rgba(45,28,19,.45)";
-      context.lineWidth = 0.85;
-      context.beginPath();
-      context.moveTo(-14, 7);
-      context.bezierCurveTo(-6, 10, 4, 4, 16, 7);
-      context.stroke();
-    }
-    context.restore();
-  });
 }
 
 function drawFolio(context: CanvasRenderingContext2D, width: number, height: number, locale: Locale, active: number) {
   context.save();
   context.font = referenceFont(width < 700 ? 8.5 : 9.5, 400, true);
   context.rotate(-0.015);
-  drawInkLine(context, `ISCHCA · ${COPY[locale].folio} ${String(active + 1).padStart(2, "0")} · JAPONIA`, width * 0.5, height * 0.065, {
+  drawInkLine(context, `ISCHCA · ${COPY[locale].folio} ${String(active + 1).padStart(2, "0")} · CODEX PRIVATUS`, width * 0.5, height * 0.065, {
     align: "center",
     alpha: 0.45,
     family: "reference",
@@ -873,6 +1071,168 @@ function drawLooseRule(
   context.restore();
 }
 
+function drawQuillBracket(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  height: number,
+  side: 1 | -1,
+  seed: number,
+  alpha = 0.25,
+) {
+  const reach = side * (9 + hash(seed) * 6);
+  context.save();
+  context.strokeStyle = `rgba(55, 31, 18, ${alpha})`;
+  context.lineWidth = 0.72;
+  context.beginPath();
+  context.moveTo(x + reach * 0.35, y);
+  context.bezierCurveTo(x, y + height * 0.08, x + reach, y + height * 0.18, x + reach * 0.25, y + height * 0.42);
+  context.bezierCurveTo(x - reach * 0.16, y + height * 0.5, x + reach, y + height * 0.71, x + reach * 0.28, y + height);
+  context.stroke();
+  context.restore();
+}
+
+function drawLedgerField(
+  context: CanvasRenderingContext2D,
+  locale: Locale,
+  label: string,
+  value: string,
+  x: number,
+  y: number,
+  width: number,
+  options: { narrow?: boolean; maxLines?: number; alpha?: number } = {},
+) {
+  const narrow = options.narrow ?? false;
+  context.font = referenceFont(narrow ? 7.2 : 7.9, 400, true);
+  drawInkLine(context, label.toLocaleUpperCase(), x, y, { alpha: 0.4, family: "reference", letterSpacing: 0.04 });
+  context.font = font(locale, narrow ? 8.8 : 9.6);
+  return drawWrapped(context, value, x, y + (narrow ? 13 : 15), width, narrow ? 13.5 : 15, {
+    maxLines: options.maxLines ?? 2,
+    color: INK_SOFT,
+    alpha: options.alpha ?? 0.9,
+  });
+}
+
+function drawArchivistSeal(
+  context: CanvasRenderingContext2D,
+  locale: Locale,
+  x: number,
+  y: number,
+  radius: number,
+  mark: string,
+  emphasis = false,
+) {
+  context.save();
+  context.translate(x, y);
+  context.rotate(-0.08);
+  context.strokeStyle = emphasis ? "rgba(102, 42, 31, .52)" : "rgba(55, 31, 18, .3)";
+  context.lineWidth = emphasis ? 1.1 : 0.72;
+  context.beginPath();
+  context.ellipse(0, 0, radius, radius * 0.91, 0.06, 0, Math.PI * 2);
+  context.stroke();
+  context.beginPath();
+  context.ellipse(0.8, -0.5, radius * 0.73, radius * 0.66, -0.04, 0, Math.PI * 2);
+  context.stroke();
+  context.font = font(locale, radius * 0.72);
+  drawInkLine(context, mark, 0, radius * 0.23, {
+    align: "center",
+    color: emphasis ? AWAKENED_INK : INK,
+    alpha: emphasis ? 0.66 : 0.44,
+  });
+  context.restore();
+}
+
+function drawFleuron(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  seed: number,
+  alpha = 0.3,
+) {
+  const half = width * 0.5;
+  const rise = 5 + hash(seed) * 4;
+  context.save();
+  context.translate(x, y);
+  context.strokeStyle = `rgba(50, 28, 18, ${alpha})`;
+  context.fillStyle = `rgba(50, 28, 18, ${alpha * 0.58})`;
+  context.lineWidth = 0.72;
+  [-1, 1].forEach((side) => {
+    context.beginPath();
+    context.moveTo(0, 0);
+    context.bezierCurveTo(side * half * 0.18, -rise, side * half * 0.54, rise * 0.85, side * half, 0);
+    context.stroke();
+    for (let leaf = 1; leaf <= 3; leaf += 1) {
+      const lx = side * half * (0.2 + leaf * 0.17);
+      const ly = (leaf % 2 === 0 ? 1 : -1) * rise * 0.27;
+      context.beginPath();
+      context.ellipse(lx, ly, 4 + hash(seed + leaf) * 2.5, 1.5 + hash(seed + leaf + 8), side * 0.38, 0, Math.PI * 2);
+      context.fill();
+    }
+  });
+  context.beginPath();
+  context.arc(0, 0, 2.1, 0, Math.PI * 2);
+  context.fill();
+  context.restore();
+}
+
+function drawPrinterMark(
+  context: CanvasRenderingContext2D,
+  locale: Locale,
+  x: number,
+  y: number,
+  radius: number,
+) {
+  context.save();
+  context.translate(x, y);
+  context.rotate(-0.018);
+  context.strokeStyle = "rgba(48, 27, 17, .38)";
+  context.fillStyle = "rgba(48, 27, 17, .2)";
+  context.lineWidth = 0.78;
+  context.beginPath();
+  context.arc(0, 0, radius, 0, Math.PI * 2);
+  context.stroke();
+  context.beginPath();
+  context.moveTo(0, -radius * 0.78);
+  context.lineTo(radius * 0.72, radius * 0.48);
+  context.lineTo(-radius * 0.72, radius * 0.48);
+  context.closePath();
+  context.stroke();
+  context.beginPath();
+  context.arc(0, radius * 0.03, radius * 0.32, 0, Math.PI * 2);
+  context.stroke();
+  context.font = font(locale, radius * 0.54);
+  drawInkLine(context, "I", 0, radius * 0.18, { align: "center", alpha: 0.52, pressure: 0.8 });
+  context.restore();
+}
+
+function drawDecoratedInitial(
+  context: CanvasRenderingContext2D,
+  locale: Locale,
+  letter: string,
+  x: number,
+  y: number,
+  size: number,
+) {
+  context.save();
+  context.translate(x, y);
+  context.rotate(-0.012);
+  context.strokeStyle = "rgba(93, 39, 29, .45)";
+  context.lineWidth = 0.8;
+  context.beginPath();
+  context.rect(-size * 0.08, -size * 0.76, size * 0.78, size * 0.9);
+  context.stroke();
+  context.font = font(locale, size);
+  drawInkLine(context, letter, size * 0.3, 0, {
+    align: "center",
+    color: AWAKENED_INK,
+    alpha: 0.8,
+    pressure: 0.9,
+    absorption: 0.82,
+  });
+  context.restore();
+}
+
 function drawHome(
   context: CanvasRenderingContext2D,
   width: number,
@@ -883,72 +1243,69 @@ function drawHome(
   const copy = COPY[locale];
   const narrow = width < 700;
   context.save();
-  context.font = font(locale, narrow ? 9 : 10, 400, true);
-  drawInkLine(context, copy.volume, width * (narrow ? 0.17 : 0.14), height * (narrow ? 0.15 : 0.13), { alpha: 0.58 });
+  const center = width * 0.5;
+  context.font = referenceFont(narrow ? 8.2 : 9.5, 400, true);
+  drawInkLine(context, copy.volume, center, height * (narrow ? 0.145 : 0.13), {
+    align: "center",
+    alpha: 0.5,
+    family: "reference",
+    letterSpacing: 0.045,
+  });
+  drawFleuron(context, center, height * (narrow ? 0.18 : 0.175), width * (narrow ? 0.3 : 0.2), 19, 0.31);
 
-  drawRoughHeading(
+  const titleSize = narrow ? 25 : clamp(38, width * 0.04, 52);
+  const titleLines = copy.title.split("\n");
+  context.font = font(locale, titleSize);
+  titleLines.forEach((line, index) => {
+    drawInkLine(context, line, center, height * (narrow ? 0.27 : 0.285) + index * titleSize * 1.22, {
+      align: "center",
+      alpha: 0.95,
+      pressure: 0.74,
+      absorption: 0.77,
+      letterSpacing: 0.018,
+      maxWidth: width * (narrow ? 0.72 : 0.62),
+    });
+  });
+  drawFleuron(context, center, height * (narrow ? 0.37 : 0.42), width * (narrow ? 0.42 : 0.28), 73, 0.25);
+
+  context.font = font(locale, narrow ? 10.4 : 12.5);
+  const prefaceEnd = drawWrapped(
     context,
-    copy.title.split("\n"),
-    width * (narrow ? 0.15 : 0.16),
-    height * (narrow ? 0.235 : 0.25),
-    narrow && locale === "en" ? 22 : narrow ? 27 : clamp(34, width * 0.038, 49),
-    locale,
+    copy.homeCopy,
+    center,
+    height * (narrow ? 0.43 : 0.48),
+    width * (narrow ? 0.63 : 0.43),
+    narrow ? 18 : 21,
+    { maxLines: narrow ? 5 : 4, color: INK_SOFT, align: "center" },
   );
-
-  context.font = font(locale, narrow ? 11.5 : 13.5);
+  context.font = font(locale, narrow ? 8.9 : 10.3);
   drawWrapped(
     context,
     content.hero.introduction,
-    width * (narrow ? 0.19 : 0.2),
-    height * (narrow ? 0.41 : 0.45),
-    width * (narrow ? 0.65 : 0.39),
-    narrow ? 20 : 23,
-    { maxLines: narrow ? 7 : 6, color: INK_SOFT },
+    center,
+    prefaceEnd + (narrow ? 13 : 16),
+    width * (narrow ? 0.58 : 0.38),
+    narrow ? 15.5 : 17.5,
+    { maxLines: narrow ? 7 : 5, color: "rgba(53,31,20,.61)", align: "center" },
   );
 
-  context.save();
-  context.translate(
-    width * (narrow ? 0.18 : 0.66),
-    height * (narrow ? 0.63 : locale === "en" ? 0.34 : 0.285),
-  );
-  context.rotate(narrow ? -0.035 : 0.035);
-  context.font = handFont(locale, narrow ? 13 : 15);
-  drawWrapped(context, copy.maxim, 0, 0, width * (narrow ? 0.59 : 0.22), narrow ? 22 : 24, {
-    maxLines: 4,
-    color: "rgba(60,35,20,.67)",
+  drawPrinterMark(context, locale, center, height * (narrow ? 0.69 : 0.72), narrow ? 31 : 38);
+  context.font = handFont(locale, narrow ? 10.5 : 13);
+  drawWrapped(context, copy.maxim, center, height * (narrow ? 0.755 : 0.79), width * (narrow ? 0.58 : 0.38), narrow ? 18 : 21, {
+    maxLines: 3,
+    color: "rgba(60,35,20,.6)",
+    align: "center",
   });
-  drawLooseRule(context, -6, narrow ? 72 : 67, width * (narrow ? 0.53 : 0.19), 117, 0.2);
-  context.restore();
 
-  const facts = [
-    [content.hero.experienceLabel, content.hero.experienceValue],
-    [content.hero.focusLabel, content.hero.focusValue],
-    [content.hero.communicationLabel, content.hero.communicationValue],
-  ];
-  const positions = narrow
-    ? [
-        [0.18, 0.78, -0.07],
-        [0.49, 0.73, 0.025],
-        [0.58, 0.84, -0.035],
-      ]
-    : [
-        [0.6, 0.62, -0.05],
-        [0.74, 0.73, 0.025],
-        [0.82, 0.55, -0.025],
-      ];
-  facts.forEach(([label, value], index) => {
-    const [px, py, angle] = positions[index];
-    context.save();
-    context.translate(width * px, height * py);
-    context.rotate(angle);
-    context.font = font(locale, narrow ? 8.5 : 9, 400, true);
-    drawInkLine(context, label, 0, 0, { alpha: 0.45 });
-    context.font = font(locale, narrow ? 12 : 14, 600);
-    drawInkLine(context, value, 0, narrow ? 17 : 20, {
-      alpha: 0.84,
-      maxWidth: width * (narrow ? 0.27 : index === 2 ? 0.14 : 0.2),
-    });
-    context.restore();
+  drawFleuron(context, center, height * (narrow ? 0.84 : 0.865), width * (narrow ? 0.34 : 0.2), 131, 0.2);
+  context.font = referenceFont(narrow ? 6.9 : 7.7, 400, true);
+  const imprint = `${content.hero.experienceValue} OF PRACTICE  ·  ${content.hero.focusValue}  ·  ${content.hero.communicationValue}`;
+  drawInkLine(context, imprint, center, height * (narrow ? 0.88 : 0.9), {
+    align: "center",
+    alpha: 0.39,
+    maxWidth: width * (narrow ? 0.68 : 0.52),
+    family: "reference",
+    letterSpacing: 0.025,
   });
   context.restore();
 }
@@ -961,50 +1318,87 @@ function drawWork(
   locale: Locale,
 ) {
   const narrow = width < 700;
+  const copy = COPY[locale];
   const positions = narrow
     ? [
-        { x: 0.14, y: 0.29, width: 0.67, angle: -0.015 },
-        { x: 0.29, y: 0.51, width: 0.61, angle: 0.018 },
-        { x: 0.13, y: 0.72, width: 0.68, angle: -0.01 },
+        { x: 0.17, y: 0.31, width: 0.68, angle: -0.012 },
+        { x: 0.22, y: 0.53, width: 0.65, angle: 0.014 },
+        { x: 0.15, y: 0.75, width: 0.7, angle: -0.009 },
       ]
     : [
-        { x: 0.13, y: 0.34, width: 0.27, angle: -0.022 },
-        { x: 0.4, y: 0.59, width: 0.29, angle: 0.015 },
-        { x: 0.67, y: 0.31, width: 0.23, angle: -0.018 },
+        { x: 0.15, y: 0.35, width: 0.32, angle: -0.018 },
+        { x: 0.56, y: 0.35, width: 0.31, angle: 0.012 },
+        { x: 0.27, y: 0.68, width: 0.43, angle: -0.013 },
       ];
 
   context.save();
   context.font = referenceFont(narrow ? 9 : 10, 400, true);
-  drawInkLine(context, "CAPUT II · OPERA", width * (narrow ? 0.16 : 0.18), height * 0.14, { alpha: 0.5, family: "reference" });
-  drawRoughHeading(context, [COPY[locale].work], width * (narrow ? 0.16 : 0.18), height * (narrow ? 0.205 : 0.22), narrow ? 25 : 37, locale);
-
-  context.save();
-  context.strokeStyle = "rgba(66,39,22,.21)";
-  context.setLineDash([1, 7]);
-  context.lineWidth = 1;
-  context.beginPath();
-  context.moveTo(width * positions[0].x + 8, height * positions[0].y - 22);
-  context.bezierCurveTo(width * 0.27, height * 0.5, width * 0.47, height * 0.42, width * positions[1].x, height * positions[1].y - 24);
-  context.bezierCurveTo(width * 0.61, height * 0.76, width * 0.69, height * 0.34, width * positions[2].x, height * positions[2].y - 20);
-  context.stroke();
-  context.restore();
+  drawInkLine(context, "CAPUT II · REGISTRUM COMMISSIONUM", width * (narrow ? 0.16 : 0.13), height * 0.14, {
+    alpha: 0.44,
+    family: "reference",
+  });
+  const workHeading = !narrow && locale === "en"
+    ? ["Of Works That May", "Be Commissioned"]
+    : [copy.workTitle];
+  drawRoughHeading(
+    context,
+    workHeading,
+    width * (narrow ? 0.16 : 0.145),
+    height * (narrow ? 0.205 : 0.19),
+    narrow ? 23 : 33,
+    locale,
+    narrow ? 29 : 35,
+  );
+  const introX = width * (narrow ? 0.25 : 0.65);
+  const introY = height * (narrow ? 0.255 : 0.16);
+  drawDecoratedInitial(context, locale, copy.commissionIntro.slice(0, 1), introX - (narrow ? 26 : 35), introY + (narrow ? 15 : 19), narrow ? 28 : 38);
+  context.font = font(locale, narrow ? 8.8 : 10.2);
+  drawWrapped(
+    context,
+    copy.commissionIntro.slice(1),
+    introX,
+    introY,
+    width * (narrow ? 0.57 : 0.21),
+    narrow ? 14.5 : 17,
+    { maxLines: narrow ? 3 : 5, color: "rgba(53,31,20,.57)" },
+  );
 
   content.work.slice(0, 3).forEach((item, index) => {
     const position = positions[index];
     context.save();
     context.translate(width * position.x, height * position.y);
     context.rotate(position.angle);
-    context.font = font(locale, narrow ? 38 : 51, 400);
-    drawInkLine(context, ROMAN[index], -12, 0, { color: INK_FAINT, alpha: 0.45 });
-    context.font = font(locale, narrow ? 15 : 18, 600);
-    drawInkLine(context, item.title, narrow ? 20 : 27, 0, { maxWidth: width * position.width - 18, alpha: 0.92 });
-    context.font = font(locale, narrow ? 10.5 : 11.5);
-    const summaryY = drawWrapped(context, item.summary, narrow ? 20 : 27, narrow ? 24 : 28, width * position.width - 22, narrow ? 17 : 18, {
-      maxLines: narrow ? 4 : 5,
+    const inset = narrow ? 17 : 24;
+    const entryWidth = width * position.width - inset;
+    drawQuillBracket(context, -15, -10, narrow ? 164 : index === 0 ? 225 : 184, 1, 283 + index * 29, index === 0 ? 0.3 : 0.22);
+    context.font = referenceFont(narrow ? 8 : 8.7, 400, true);
+    drawInkLine(context, `COMMISSIO ${ROMAN[index]}`, inset, -9, { alpha: 0.38, family: "reference" });
+    context.font = font(locale, narrow ? 13.2 : index === 0 ? 18.5 : 16.5, 400);
+    drawInkLine(context, item.title, inset, narrow ? 12 : 14, { maxWidth: entryWidth, alpha: 0.92, pressure: 0.72 });
+    drawLooseRule(context, inset, narrow ? 21 : 25, entryWidth * (index === 0 ? 0.93 : 0.84), 293 + index * 17, 0.16);
+    context.font = font(locale, narrow ? 8.9 : 10.2);
+    const summaryY = drawWrapped(context, item.summary, inset, narrow ? 39 : 45, entryWidth, narrow ? 13.8 : 16, {
+      maxLines: narrow ? 2 : index === 0 ? 4 : 3,
       color: INK_SOFT,
     });
-    context.font = referenceFont(narrow ? 8 : 8.7, 400, true);
-    drawInkLine(context, item.stack, narrow ? 20 : 27, summaryY + 2, { alpha: 0.42, maxWidth: width * position.width - 22, family: "reference" });
+    let cursor = drawLedgerField(context, locale, copy.fit, item.fit, inset, summaryY + 3, entryWidth, {
+      narrow,
+      maxLines: narrow ? 2 : 2,
+    });
+    cursor = drawLedgerField(context, locale, copy.scope, item.scope, inset, cursor + 1, entryWidth, {
+      narrow,
+      maxLines: 1,
+    });
+    cursor = drawLedgerField(context, locale, copy.outcome, item.outcome, inset, cursor + 1, entryWidth, {
+      narrow,
+      maxLines: narrow ? 1 : 2,
+    });
+    context.font = referenceFont(narrow ? 7.1 : 7.8, 400, true);
+    drawInkLine(context, `${copy.tools.toLocaleUpperCase()} · ${item.stack}`, inset, cursor + (narrow ? 2 : 4), {
+      alpha: 0.38,
+      maxWidth: entryWidth,
+      family: "reference",
+    });
     context.restore();
   });
   context.restore();
@@ -1018,66 +1412,104 @@ function drawCareer(
   locale: Locale,
 ) {
   const narrow = width < 700;
+  const copy = COPY[locale];
   const positions = narrow
     ? [
-        [0.16, 0.28, -0.018],
-        [0.43, 0.405, 0.02],
-        [0.14, 0.535, -0.012],
-        [0.42, 0.67, 0.017],
-        [0.17, 0.80, -0.018],
+        { x: 0.15, y: 0.29, width: 0.58, angle: -0.013, side: -1 },
+        { x: 0.3, y: 0.42, width: 0.57, angle: 0.012, side: 1 },
+        { x: 0.14, y: 0.55, width: 0.59, angle: -0.01, side: -1 },
+        { x: 0.29, y: 0.68, width: 0.58, angle: 0.012, side: 1 },
+        { x: 0.16, y: 0.78, width: 0.6, angle: -0.012, side: -1 },
       ]
     : [
-        [0.15, 0.31, -0.018],
-        [0.34, 0.57, 0.018],
-        [0.49, 0.31, -0.012],
-        [0.66, 0.58, 0.017],
-        [0.75, 0.28, -0.018],
+        { x: 0.12, y: 0.3, width: 0.31, angle: -0.012, side: -1 },
+        { x: 0.55, y: 0.425, width: 0.32, angle: 0.012, side: 1 },
+        { x: 0.14, y: 0.55, width: 0.3, angle: -0.01, side: -1 },
+        { x: 0.54, y: 0.675, width: 0.32, angle: 0.011, side: 1 },
+        { x: 0.16, y: 0.77, width: 0.33, angle: -0.013, side: -1 },
       ];
 
   context.save();
   context.font = referenceFont(narrow ? 9 : 10, 400, true);
-  drawInkLine(context, "CAPUT III · CURSUS", width * (narrow ? 0.17 : 0.18), height * 0.14, { alpha: 0.5, family: "reference" });
-  drawRoughHeading(context, [COPY[locale].career], width * (narrow ? 0.17 : 0.18), height * (narrow ? 0.205 : 0.22), narrow ? 24 : 36, locale);
+  drawInkLine(context, "CAPUT III · PROVENIENTIA", width * (narrow ? 0.16 : 0.13), height * 0.14, { alpha: 0.44, family: "reference" });
+  drawRoughHeading(context, [copy.careerTitle], width * (narrow ? 0.16 : 0.14), height * (narrow ? 0.205 : 0.215), narrow ? 23 : 35, locale);
+  const careerIntroX = width * (narrow ? 0.29 : 0.59);
+  const careerIntroY = height * (narrow ? 0.245 : 0.16);
+  drawDecoratedInitial(context, locale, copy.careerIntro.slice(0, 1), careerIntroX - (narrow ? 26 : 34), careerIntroY + (narrow ? 15 : 18), narrow ? 28 : 37);
+  context.font = font(locale, narrow ? 8.5 : 10);
+  drawWrapped(context, copy.careerIntro.slice(1), careerIntroX, careerIntroY, width * (narrow ? 0.55 : 0.25), narrow ? 14 : 16.5, {
+    maxLines: narrow ? 3 : 4,
+    color: "rgba(53,31,20,.57)",
+  });
 
   context.save();
-  context.strokeStyle = "rgba(61,34,20,.27)";
-  context.lineWidth = 1;
+  context.strokeStyle = "rgba(61,34,20,.24)";
+  context.lineWidth = 0.9;
   context.beginPath();
-  positions.forEach(([px, py], index) => {
-    const x = width * px;
-    const y = height * py - (narrow ? 16 : 24);
-    if (index === 0) context.moveTo(x, y);
-    else {
-      const [previousX, previousY] = positions[index - 1];
-      const controlX = width * ((previousX + px) / 2 + (index % 2 === 0 ? 0.08 : -0.06));
-      context.quadraticCurveTo(controlX, height * ((previousY + py) / 2), x, y);
-    }
+  positions.forEach((position, index) => {
+    const stemX = width * (narrow ? 0.5 + (index % 2 === 0 ? -0.035 : 0.035) : 0.49 + (index % 2 === 0 ? -0.02 : 0.025));
+    const stemY = height * position.y - (narrow ? 14 : 11);
+    if (index === 0) context.moveTo(stemX, stemY - (narrow ? 14 : 9));
+    else context.bezierCurveTo(stemX + (index % 2 === 0 ? -18 : 18), stemY - 38, stemX + (index % 2 === 0 ? 12 : -12), stemY - 20, stemX, stemY);
   });
   context.stroke();
   context.restore();
 
   content.career.slice(0, 5).forEach((item, index) => {
-    const [px, py, angle] = positions[index];
+    const position = positions[index];
+    const stemX = width * (narrow ? 0.5 + (index % 2 === 0 ? -0.035 : 0.035) : 0.49 + (index % 2 === 0 ? -0.02 : 0.025));
+    const stemY = height * position.y - (narrow ? 14 : 11);
+    const entryX = width * position.x;
+    const branchEnd = position.side < 0 ? entryX + width * position.width + 5 : entryX - 7;
     context.save();
-    context.translate(width * px, height * py);
-    context.rotate(angle);
-    context.fillStyle = index === 0 ? "rgba(94,35,25,.68)" : "rgba(47,28,18,.54)";
+    context.strokeStyle = "rgba(61,34,20,.2)";
+    context.lineWidth = 0.65;
     context.beginPath();
-    context.arc(0, narrow ? -17 : -25, index === 0 ? 3.1 : 2.2, 0, Math.PI * 2);
+    context.moveTo(stemX, stemY);
+    context.quadraticCurveTo((stemX + branchEnd) / 2, stemY + (index % 2 ? 8 : -7), branchEnd, stemY + 4);
+    context.stroke();
+    context.fillStyle = index === 0 ? "rgba(102,42,31,.63)" : "rgba(50,29,18,.48)";
+    context.beginPath();
+    context.arc(stemX, stemY, index === 0 ? 3 : 2, 0, Math.PI * 2);
     context.fill();
-    context.font = referenceFont(narrow ? 8 : 8.5, 400, true);
-    drawInkLine(context, item.period, 0, 0, { alpha: 0.52, family: "reference" });
-    context.font = font(locale, narrow ? 12.2 : 14.5, 600);
-    drawInkLine(context, item.company, 0, narrow ? 17 : 20, { maxWidth: width * (narrow ? 0.47 : 0.18), alpha: 0.91 });
-    context.font = referenceFont(narrow ? 8.5 : 9.2, 400, true);
-    drawInkLine(context, item.role, 0, narrow ? 31 : 35, { maxWidth: width * (narrow ? 0.43 : 0.18), alpha: 0.58, family: "reference" });
-    context.font = font(locale, narrow ? 8.8 : 9.5);
-    drawWrapped(context, item.summary, 0, narrow ? 47 : 52, width * (narrow ? 0.44 : 0.17), narrow ? 14 : 15, {
-      maxLines: narrow ? 3 : 4,
+    context.restore();
+
+    context.save();
+    context.translate(entryX, height * position.y);
+    context.rotate(position.angle);
+    const entryWidth = width * position.width;
+    context.font = referenceFont(narrow ? 7.6 : 8.2, 400, true);
+    drawInkLine(context, item.period, 0, 0, { alpha: 0.48, family: "reference" });
+    context.font = font(locale, narrow ? 12.2 : 14.2);
+    drawInkLine(context, item.company, 0, narrow ? 17 : 19, { maxWidth: entryWidth, alpha: 0.91, pressure: 0.7 });
+    context.font = referenceFont(narrow ? 7.7 : 8.4, 400, true);
+    drawInkLine(context, item.role, entryWidth, narrow ? 30 : 32, {
+      align: "right",
+      maxWidth: entryWidth,
+      alpha: 0.5,
+      family: "reference",
+    });
+    context.font = font(locale, narrow ? 8.6 : 9.3);
+    const summaryEnd = drawWrapped(context, item.summary, 0, narrow ? 45 : 48, entryWidth, narrow ? 13.4 : 14.5, {
+      maxLines: 2,
       color: INK_SOFT,
+    });
+    if (!narrow) {
+      context.font = font(locale, 8.2);
+      drawWrapped(context, item.details[0], 8, summaryEnd + 1, entryWidth - 8, 13, {
+        maxLines: 1,
+        color: "rgba(53,31,20,.53)",
+      });
+    }
+    context.font = referenceFont(narrow ? 6.8 : 7.2, 400, true);
+    drawInkLine(context, item.stack, 0, summaryEnd + (narrow ? 3 : 18), {
+      maxWidth: entryWidth,
+      alpha: 0.31,
+      family: "reference",
     });
     context.restore();
   });
+  if (!narrow) drawArchivistSeal(context, locale, width * 0.79, height * 0.79, 30, locale === "ja" ? "現" : "NOW", true);
   context.restore();
 }
 
@@ -1088,32 +1520,32 @@ function actionSpots(active: number, width: number): ActionSpot[] {
       {
         label: "Restrict Language website",
         href: "https://ischca.github.io/restrict_lang/",
-        x: narrow ? 0.19 : 0.205,
-        y: narrow ? 0.48 : 0.615,
+        x: narrow ? 0.18 : 0.68,
+        y: narrow ? 0.54 : 0.31,
         width: narrow ? 0.27 : 0.12,
         height: 0.055,
       },
       {
         label: "Restrict Language GitHub",
         href: "https://github.com/Ischca/restrict_lang",
-        x: narrow ? 0.5 : 0.335,
-        y: narrow ? 0.48 : 0.615,
+        x: narrow ? 0.5 : 0.72,
+        y: narrow ? 0.54 : 0.39,
         width: narrow ? 0.22 : 0.095,
         height: 0.055,
       },
       {
         label: "PrismDiff website",
         href: "https://ischca.github.io/prismdiff/",
-        x: narrow ? 0.31 : 0.615,
-        y: narrow ? 0.78 : 0.665,
+        x: narrow ? 0.31 : 0.12,
+        y: narrow ? 0.82 : 0.67,
         width: narrow ? 0.27 : 0.12,
         height: 0.055,
       },
       {
         label: "PrismDiff GitHub",
         href: "https://github.com/Ischca/prismdiff",
-        x: narrow ? 0.61 : 0.745,
-        y: narrow ? 0.78 : 0.665,
+        x: narrow ? 0.61 : 0.16,
+        y: narrow ? 0.82 : 0.75,
         width: narrow ? 0.22 : 0.095,
         height: 0.055,
       },
@@ -1122,16 +1554,16 @@ function actionSpots(active: number, width: number): ActionSpot[] {
   if (active === 4) {
     const positions = narrow
       ? [
-          [0.2, 0.48],
-          [0.52, 0.58],
-          [0.18, 0.69],
-          [0.61, 0.75],
+          [0.18, 0.62],
+          [0.53, 0.68],
+          [0.2, 0.76],
+          [0.57, 0.82],
         ]
       : [
-          [0.21, 0.57],
-          [0.39, 0.68],
-          [0.64, 0.62],
-          [0.78, 0.48],
+          [0.17, 0.68],
+          [0.36, 0.76],
+          [0.62, 0.72],
+          [0.79, 0.64],
         ];
     return SOCIAL_LINKS.map((link, index) => ({
       ...link,
@@ -1152,77 +1584,108 @@ function drawProducts(
   locale: Locale,
 ) {
   const narrow = width < 700;
-  const centers = narrow
+  const copy = COPY[locale];
+  const layouts = narrow
     ? [
-        { x: 0.36, y: 0.36, radius: width * 0.21, angle: -0.022 },
-        { x: 0.62, y: 0.67, radius: width * 0.22, angle: 0.025 },
+        { x: 0.16, y: 0.31, width: 0.62, diagramX: 0.72, diagramY: 0.37, radius: width * 0.13, angle: -0.018 },
+        { x: 0.29, y: 0.63, width: 0.57, diagramX: 0.2, diagramY: 0.7, radius: width * 0.13, angle: 0.02 },
       ]
     : [
-        { x: 0.3, y: 0.43, radius: Math.min(width, height) * 0.205, angle: -0.022 },
-        { x: 0.71, y: 0.52, radius: Math.min(width, height) * 0.22, angle: 0.025 },
+        { x: 0.34, y: 0.31, width: 0.29, diagramX: 0.22, diagramY: 0.41, radius: Math.min(width, height) * 0.14, angle: -0.018 },
+        { x: 0.52, y: 0.59, width: 0.31, diagramX: 0.75, diagramY: 0.65, radius: Math.min(width, height) * 0.145, angle: 0.02 },
       ];
   const spots = actionSpots(3, width);
 
   context.save();
   context.font = referenceFont(narrow ? 9 : 10, 400, true);
-  drawInkLine(context, "CAPUT IV · ARTIFICIA", width * (narrow ? 0.16 : 0.18), height * 0.14, { alpha: 0.5, family: "reference" });
-  drawRoughHeading(context, [COPY[locale].products], width * (narrow ? 0.16 : 0.18), height * (narrow ? 0.205 : 0.22), narrow ? 24 : 36, locale);
+  drawInkLine(context, "CAPUT IV · TABULAE OFFICINAE", width * (narrow ? 0.16 : 0.6), height * 0.14, { alpha: 0.44, family: "reference" });
+  const productsHeading = locale === "en"
+    ? ["Instruments of", "the Workshop"]
+    : [copy.productsTitle];
+  drawRoughHeading(
+    context,
+    productsHeading,
+    width * (narrow ? 0.16 : 0.57),
+    height * (narrow ? 0.205 : 0.19),
+    narrow ? 22.5 : 32,
+    locale,
+    narrow ? 28 : 36,
+    width * (narrow ? 0.68 : 0.34),
+  );
+  const productsIntroX = width * (narrow ? 0.26 : 0.14);
+  const productsIntroY = height * (narrow ? 0.245 : 0.16);
+  drawDecoratedInitial(context, locale, copy.productsIntro.slice(0, 1), productsIntroX - (narrow ? 26 : 34), productsIntroY + (narrow ? 15 : 19), narrow ? 28 : 38);
+  context.font = font(locale, narrow ? 8.6 : 10.1);
+  drawWrapped(context, copy.productsIntro.slice(1), productsIntroX, productsIntroY, width * (narrow ? 0.57 : 0.27), narrow ? 14 : 17, {
+    maxLines: narrow ? 3 : 4,
+    color: "rgba(53,31,20,.57)",
+  });
 
   content.products.slice(0, 2).forEach((product, index) => {
-    const center = centers[index];
-    const cx = width * center.x;
-    const cy = height * center.y;
+    const layout = layouts[index];
+    const cx = width * layout.diagramX;
+    const cy = height * layout.diagramY;
     context.save();
     context.translate(cx, cy);
-    context.rotate(center.angle);
-    context.strokeStyle = "rgba(55,31,18,.28)";
-    context.lineWidth = 0.9;
-    context.setLineDash([1, 6]);
+    context.rotate(layout.angle);
+    context.strokeStyle = "rgba(55,31,18,.22)";
+    context.lineWidth = 0.82;
+    context.setLineDash([1, 5]);
     if (index === 0) {
-      // A broken compiler genealogy: source enters at the left and forks
-      // through three transformations rather than sitting in a card frame.
       context.beginPath();
-      context.moveTo(-center.radius * 0.96, center.radius * 0.18);
-      context.bezierCurveTo(-center.radius * 0.7, -center.radius * 0.12, -center.radius * 0.38, center.radius * 0.17, -center.radius * 0.12, 0);
-      context.bezierCurveTo(center.radius * 0.14, -center.radius * 0.17, center.radius * 0.38, -center.radius * 0.45, center.radius * 0.86, -center.radius * 0.39);
-      context.moveTo(-center.radius * 0.12, 0);
-      context.bezierCurveTo(center.radius * 0.16, center.radius * 0.04, center.radius * 0.44, center.radius * 0.32, center.radius * 0.94, center.radius * 0.26);
+      context.moveTo(-layout.radius, layout.radius * 0.21);
+      context.bezierCurveTo(-layout.radius * 0.65, -layout.radius * 0.22, -layout.radius * 0.35, layout.radius * 0.17, -layout.radius * 0.1, 0);
+      context.bezierCurveTo(layout.radius * 0.16, -layout.radius * 0.2, layout.radius * 0.41, -layout.radius * 0.52, layout.radius * 0.93, -layout.radius * 0.39);
+      context.moveTo(-layout.radius * 0.1, 0);
+      context.bezierCurveTo(layout.radius * 0.14, layout.radius * 0.04, layout.radius * 0.46, layout.radius * 0.35, layout.radius, layout.radius * 0.26);
       context.stroke();
       [[-0.96,0.18],[-0.12,0],[0.86,-0.39],[0.94,0.26]].forEach(([mx, my], mark) => {
         context.fillStyle = `rgba(50,28,17,${0.27 + mark * 0.035})`;
         context.beginPath();
-        context.arc(center.radius * mx, center.radius * my, 1.5 + mark * 0.28, 0, Math.PI * 2);
+        context.arc(layout.radius * mx, layout.radius * my, 1.3 + mark * 0.24, 0, Math.PI * 2);
         context.fill();
       });
     } else {
-      // A refracted diff: two noisy manuscripts enter a skewed prism and only
-      // a few meaningful rays leave it.
       context.beginPath();
-      context.moveTo(-center.radius * 0.95, -center.radius * 0.31);
-      context.bezierCurveTo(-center.radius * 0.7, -center.radius * 0.28, -center.radius * 0.52, -center.radius * 0.16, -center.radius * 0.27, -center.radius * 0.08);
-      context.moveTo(-center.radius, center.radius * 0.31);
-      context.bezierCurveTo(-center.radius * 0.71, center.radius * 0.3, -center.radius * 0.5, center.radius * 0.17, -center.radius * 0.27, center.radius * 0.08);
-      context.moveTo(-center.radius * 0.28, -center.radius * 0.51);
-      context.lineTo(center.radius * 0.3, 0);
-      context.lineTo(-center.radius * 0.28, center.radius * 0.51);
+      context.moveTo(-layout.radius * 0.95, -layout.radius * 0.31);
+      context.bezierCurveTo(-layout.radius * 0.7, -layout.radius * 0.28, -layout.radius * 0.52, -layout.radius * 0.16, -layout.radius * 0.27, -layout.radius * 0.08);
+      context.moveTo(-layout.radius, layout.radius * 0.31);
+      context.bezierCurveTo(-layout.radius * 0.71, layout.radius * 0.3, -layout.radius * 0.5, layout.radius * 0.17, -layout.radius * 0.27, layout.radius * 0.08);
+      context.moveTo(-layout.radius * 0.28, -layout.radius * 0.51);
+      context.lineTo(layout.radius * 0.3, 0);
+      context.lineTo(-layout.radius * 0.28, layout.radius * 0.51);
       context.closePath();
-      context.moveTo(center.radius * 0.3, 0);
-      context.bezierCurveTo(center.radius * 0.51, -center.radius * 0.11, center.radius * 0.68, -center.radius * 0.32, center.radius * 0.96, -center.radius * 0.35);
-      context.moveTo(center.radius * 0.3, 0);
-      context.bezierCurveTo(center.radius * 0.57, center.radius * 0.02, center.radius * 0.72, center.radius * 0.2, center.radius * 0.91, center.radius * 0.27);
+      context.moveTo(layout.radius * 0.3, 0);
+      context.bezierCurveTo(layout.radius * 0.51, -layout.radius * 0.11, layout.radius * 0.68, -layout.radius * 0.32, layout.radius * 0.96, -layout.radius * 0.35);
+      context.moveTo(layout.radius * 0.3, 0);
+      context.bezierCurveTo(layout.radius * 0.57, layout.radius * 0.02, layout.radius * 0.72, layout.radius * 0.2, layout.radius * 0.91, layout.radius * 0.27);
       context.stroke();
     }
     context.setLineDash([]);
-    context.font = referenceFont(narrow ? 8 : 9, 400, true);
-    drawInkLine(context, product.kind, 0, narrow ? -40 : -56, { align: "center", alpha: 0.5, maxWidth: center.radius * 1.45, family: "reference" });
-    context.font = font(locale, narrow ? 18 : 24, 600);
-    drawInkLine(context, product.name, 0, narrow ? -10 : -17, { align: "center", alpha: 0.94, maxWidth: center.radius * 1.6 });
-    context.font = font(locale, narrow ? 9.5 : 11);
-    drawWrapped(context, product.description, 0, narrow ? 16 : 19, center.radius * 1.42, narrow ? 15 : 18, {
-      maxLines: narrow ? 5 : 5,
+    context.restore();
+
+    context.save();
+    context.translate(width * layout.x, height * layout.y);
+    context.rotate(layout.angle);
+    const textWidth = width * layout.width;
+    context.font = referenceFont(narrow ? 7.5 : 8.2, 400, true);
+    drawInkLine(context, `TABULA ${index === 0 ? "A" : "B"} · ${product.kind}`, 0, 0, { alpha: 0.43, maxWidth: textWidth, family: "reference" });
+    context.font = font(locale, narrow ? 17 : 23);
+    drawInkLine(context, product.name, 0, narrow ? 22 : 27, { alpha: 0.94, maxWidth: textWidth, pressure: 0.74 });
+    context.font = font(locale, narrow ? 8.9 : 10.2);
+    const descriptionEnd = drawWrapped(context, product.description, 0, narrow ? 43 : 52, textWidth, narrow ? 14.5 : 16.5, {
+      maxLines: narrow ? 3 : 4,
       color: INK_SOFT,
-      align: "center",
     });
+    context.font = referenceFont(narrow ? 7 : 7.7, 400, true);
+    drawInkLine(context, copy.purpose.toLocaleUpperCase(), 0, descriptionEnd + 3, { alpha: 0.38, family: "reference" });
+    context.font = font(locale, narrow ? 8.4 : 9.2);
+    const purposeEnd = drawWrapped(context, product.purpose, 0, descriptionEnd + (narrow ? 16 : 18), textWidth, narrow ? 13.5 : 15, {
+      maxLines: 2,
+      color: "rgba(53,31,20,.58)",
+    });
+    context.font = referenceFont(narrow ? 6.8 : 7.4, 400, true);
+    drawInkLine(context, product.stack, 0, purposeEnd + 2, { alpha: 0.34, maxWidth: textWidth, family: "reference" });
     context.restore();
   });
 
@@ -1231,7 +1694,7 @@ function drawProducts(
     const isWebsite = index % 2 === 0;
     drawInkLine(
       context,
-      isWebsite ? `${content.labels.website} ↗` : "GitHub ↗",
+      isWebsite ? content.labels.website : "GitHub",
       width * (spot.x + spot.width / 2),
       height * (spot.y + spot.height * 0.68),
       { align: "center", alpha: 0.64, family: "reference" },
@@ -1248,39 +1711,58 @@ function drawContact(
   locale: Locale,
 ) {
   const narrow = width < 700;
+  const copy = COPY[locale];
   const spots = actionSpots(4, width);
   context.save();
   context.font = referenceFont(narrow ? 9 : 10, 400, true);
-  drawInkLine(context, "CAPUT V · EPISTOLAE", width * (narrow ? 0.16 : 0.18), height * 0.14, { alpha: 0.5, family: "reference" });
-  drawRoughHeading(context, [COPY[locale].contact], width * (narrow ? 0.16 : 0.18), height * (narrow ? 0.205 : 0.22), narrow ? 23 : 35, locale);
+  drawInkLine(context, "CAPUT V · EPISTOLA APERTA", width * (narrow ? 0.16 : 0.13), height * 0.14, { alpha: 0.44, family: "reference" });
+  drawRoughHeading(context, [copy.contactTitle], width * (narrow ? 0.16 : 0.145), height * (narrow ? 0.205 : 0.215), narrow ? 23 : 35, locale);
 
   context.save();
-  context.translate(width * 0.5, height * (narrow ? 0.36 : 0.4));
-  context.rotate(-0.018);
-  context.font = font(locale, narrow ? 12 : 15);
-  drawWrapped(context, content.sections.contactTitle || COPY[locale].correspondence, 0, 0, width * (narrow ? 0.68 : 0.42), narrow ? 20 : 24, {
-    maxLines: 4,
-    align: "center",
+  context.translate(width * (narrow ? 0.21 : 0.23), height * (narrow ? 0.34 : 0.36));
+  context.rotate(-0.012);
+  drawDecoratedInitial(context, locale, copy.letterOpening.slice(0, 1), narrow ? -28 : -38, narrow ? 17 : 21, narrow ? 30 : 42);
+  context.font = font(locale, narrow ? 11.5 : 14);
+  const openingEnd = drawWrapped(context, copy.letterOpening.slice(1), 0, 0, width * (narrow ? 0.63 : 0.47), narrow ? 20 : 23, {
+    maxLines: narrow ? 4 : 3,
     color: INK_SOFT,
+  });
+  context.font = font(locale, narrow ? 9.2 : 10.5);
+  drawWrapped(
+    context,
+    `${content.hero.focusValue} · ${content.hero.communicationValue}`,
+    width * (narrow ? 0.07 : 0.08),
+    openingEnd + (narrow ? 16 : 21),
+    width * (narrow ? 0.55 : 0.37),
+    narrow ? 16 : 18,
+    { maxLines: 3, color: "rgba(53,31,20,.55)" },
+  );
+  context.font = handFont(locale, narrow ? 15 : 19);
+  drawInkLine(context, copy.signature, width * (narrow ? 0.38 : 0.39), openingEnd + (narrow ? 78 : 82), {
+    alpha: 0.74,
+    align: "center",
   });
   context.restore();
 
-  context.strokeStyle = "rgba(57,31,18,.22)";
-  context.lineWidth = 0.8;
-  context.beginPath();
-  context.moveTo(width * (narrow ? 0.22 : 0.18), height * (narrow ? 0.52 : 0.6));
-  context.bezierCurveTo(width * 0.36, height * 0.79, width * 0.73, height * 0.39, width * 0.84, height * (narrow ? 0.78 : 0.54));
-  context.stroke();
+  drawArchivistSeal(context, locale, width * (narrow ? 0.73 : 0.75), height * (narrow ? 0.46 : 0.43), narrow ? 38 : 55, "I", true);
+  context.font = referenceFont(narrow ? 7.2 : 8, 400, true);
+  drawInkLine(context, "POST SCRIPTUM · VIAE EXTERNAE", width * (narrow ? 0.17 : 0.14), height * (narrow ? 0.57 : 0.61), {
+    alpha: 0.34,
+    family: "reference",
+  });
 
   spots.forEach((spot, index) => {
     const angle = narrow ? (index % 2 === 0 ? -0.035 : 0.03) : (index - 1.5) * 0.025;
+    const centerX = width * (spot.x + spot.width / 2);
+    const centerY = height * (spot.y + spot.height * 0.5);
+    drawArchivistSeal(context, locale, centerX, centerY, narrow ? 23 : 27, ["GH", "in", "U", "X"][index]);
     context.save();
-    context.translate(width * (spot.x + spot.width / 2), height * (spot.y + spot.height * 0.66));
+    context.translate(centerX, centerY + (narrow ? 35 : 41));
     context.rotate(angle);
-    context.font = font(locale, narrow ? 14 : 17, 600);
+    context.font = font(locale, narrow ? 11.5 : 14);
     drawInkLine(context, SOCIAL_LINKS[index].label, 0, 0, { align: "center", alpha: 0.9 });
-    context.font = referenceFont(narrow ? 8 : 8.8, 400, true);
-    drawInkLine(context, "scriptum aperire ↗", 0, narrow ? 16 : 18, { align: "center", alpha: 0.4, family: "reference" });
+    context.font = referenceFont(narrow ? 6.8 : 7.5, 400, true);
+    drawInkLine(context, locale === "ja" ? "記録を開く" : "open record", 0, narrow ? 14 : 16, { align: "center", alpha: 0.35, family: "reference" });
     context.restore();
   });
   context.restore();
@@ -1305,6 +1787,67 @@ function drawChapter(
   else if (active === 3) drawProducts(context, width, height, content, locale);
   else if (active === 4) drawContact(context, width, height, content, locale);
   else drawHome(context, width, height, content, locale);
+  context.restore();
+}
+
+function drawPalimpsestChapter(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  state: VisualState,
+  content: SiteContent,
+  locale: Locale,
+) {
+  const transition = state.palimpsest;
+  if (transition.from === transition.to || transition.progress <= 0.001) {
+    drawChapter(context, width, height, state.active, content, locale, state.chapterPhase);
+    return;
+  }
+
+  const progress = clamp(0, transition.progress, 1);
+  // The page does not slide or crossfade. The old pigment is first taken back
+  // into the fibres; only after a quiet interval does the next hand bleed out.
+  const oldInk = 1 - smoothstep(0.04, 0.45, progress);
+  const newInk = smoothstep(0.55, 0.98, progress);
+
+  drawChapter(context, width, height, transition.from, content, locale, oldInk);
+  drawChapter(context, width, height, transition.to, content, locale, newInk);
+}
+
+function absorbPalimpsestInk(
+  context: CanvasRenderingContext2D,
+  progress: number,
+  paperAbsorption: CanvasImageSource,
+  capillaryMasks: readonly CanvasImageSource[],
+) {
+  const phase = clamp(0, progress, 1);
+  const strength = phase < 0.5
+    ? smoothstep(0.02, 0.48, phase)
+    : 1 - smoothstep(0.52, 0.98, phase);
+  if (strength <= 0.01) return;
+
+  context.save();
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.globalCompositeOperation = "destination-out";
+
+  // Reuse the paper-fixed resistance map so the same pores repeatedly drink
+  // the ink instead of showing an unrelated screen-space dissolve pattern.
+  context.globalAlpha = strength * 0.62;
+  context.drawImage(paperAbsorption, 0, 0, context.canvas.width, context.canvas.height);
+  const maskPosition = strength * Math.max(0, capillaryMasks.length - 1);
+  const lowerIndex = Math.floor(maskPosition);
+  const upperIndex = Math.min(capillaryMasks.length - 1, lowerIndex + 1);
+  const interpolation = maskPosition - lowerIndex;
+  const lowerMask = capillaryMasks[lowerIndex];
+  const upperMask = capillaryMasks[upperIndex];
+  if (lowerMask) {
+    context.globalAlpha = 0.96 * (1 - interpolation);
+    context.drawImage(lowerMask, 0, 0, context.canvas.width, context.canvas.height);
+  }
+  if (upperMask && upperIndex !== lowerIndex && interpolation > 0.001) {
+    context.globalAlpha = 0.96 * interpolation;
+    context.drawImage(upperMask, 0, 0, context.canvas.width, context.canvas.height);
+  }
   context.restore();
 }
 
@@ -1375,6 +1918,813 @@ function sigilPoints(points: InkPoint[]) {
   });
 }
 
+function normalizedAngleDelta(from: number, to: number) {
+  let delta = to - from;
+  while (delta > Math.PI) delta -= Math.PI * 2;
+  while (delta < -Math.PI) delta += Math.PI * 2;
+  return delta;
+}
+
+function circleFromGesture(points: InkPoint[], width: number, height: number, serial: number): Octagram | null {
+  if (points.length < 18) return null;
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let pathLength = 0;
+  points.forEach((point, index) => {
+    minX = Math.min(minX, point.x);
+    maxX = Math.max(maxX, point.x);
+    minY = Math.min(minY, point.y);
+    maxY = Math.max(maxY, point.y);
+    if (index > 0) pathLength += Math.hypot(point.x - points[index - 1].x, point.y - points[index - 1].y);
+  });
+  const spanX = maxX - minX;
+  const spanY = maxY - minY;
+  const minimumSpan = Math.min(spanX, spanY);
+  const maximumSpan = Math.max(spanX, spanY);
+  if (minimumSpan < 54 || maximumSpan > Math.min(width, height) * 0.62) return null;
+  if (minimumSpan / Math.max(1, maximumSpan) < 0.62) return null;
+
+  const centerX = (minX + maxX) * 0.5;
+  const centerY = (minY + maxY) * 0.5;
+  const radii = points.map((point) => Math.hypot(point.x - centerX, point.y - centerY));
+  const radius = radii.reduce((sum, value) => sum + value, 0) / radii.length;
+  const radialVariance = Math.sqrt(radii.reduce((sum, value) => sum + (value - radius) ** 2, 0) / radii.length) / Math.max(1, radius);
+  const closure = Math.hypot(points[0].x - points.at(-1)!.x, points[0].y - points.at(-1)!.y) / Math.max(1, radius * 2);
+  if (radialVariance > 0.34 || closure > 0.34 || pathLength < radius * 4.15) return null;
+
+  let signedSweep = 0;
+  let reversedSweep = 0;
+  let lastAngle = Math.atan2(points[0].y - centerY, points[0].x - centerX);
+  for (let index = 1; index < points.length; index += 1) {
+    const angle = Math.atan2(points[index].y - centerY, points[index].x - centerX);
+    const delta = normalizedAngleDelta(lastAngle, angle);
+    signedSweep += delta;
+    reversedSweep += Math.abs(delta);
+    lastAngle = angle;
+  }
+  if (Math.abs(signedSweep) < Math.PI * 1.45 || Math.abs(signedSweep) / Math.max(0.001, reversedSweep) < 0.55) return null;
+
+  return {
+    x: centerX / Math.max(1, width),
+    y: centerY / Math.max(1, height),
+    radius: clamp(0.055, radius / Math.max(1, Math.min(width, height)), 0.23),
+    rotation: Math.atan2(points[0].y - centerY, points[0].x - centerX) - Math.PI * 0.5,
+    serial,
+  };
+}
+
+function octagramVertices(sigil: Octagram, width: number, height: number) {
+  const centerX = sigil.x * width;
+  const centerY = sigil.y * height;
+  const radius = sigil.radius * Math.min(width, height);
+  return Array.from({ length: 8 }, (_, index) => {
+    const irregularity = 0.975 + hash(sigil.serial * 41 + index * 17) * 0.05;
+    const pointRadius = radius * irregularity;
+    const angle = sigil.rotation - Math.PI * 0.5 + index * Math.PI / 4;
+    return {
+      x: centerX + Math.cos(angle) * pointRadius,
+      y: centerY + Math.sin(angle) * pointRadius,
+    };
+  });
+}
+
+function crossedOctagramOrder(vertexCount: number) {
+  return Array.from({ length: vertexCount }, (_, index) => (index * 3) % vertexCount);
+}
+
+function pointSegmentProjection(point: InkPoint, start: { x: number; y: number }, end: { x: number; y: number }) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const position = lengthSquared <= 0.0001
+    ? 0
+    : clamp(0, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared, 1);
+  return {
+    position,
+    distance: Math.hypot(point.x - (start.x + dx * position), point.y - (start.y + dy * position)),
+  };
+}
+
+function gesturesTraceOctagram(strokes: InkPoint[][], sigil: Octagram, width: number, height: number) {
+  if (strokes.reduce((sum, stroke) => sum + stroke.length, 0) < 12) return false;
+  const vertices = octagramVertices(sigil, width, height);
+  const order = crossedOctagramOrder(vertices.length);
+  const radius = sigil.radius * Math.min(width, height);
+  const tolerance = clamp(6, radius * 0.09, 11);
+  const binsPerSegment = 6;
+  const coverage = order.map(() => new Set<number>());
+  let nearLength = 0;
+  let totalLength = 0;
+  const expectedLength = order.reduce((sum, vertexIndex, index) => {
+    const start = vertices[vertexIndex];
+    const end = vertices[order[(index + 1) % order.length]];
+    return sum + Math.hypot(end.x - start.x, end.y - start.y);
+  }, 0);
+  strokes.forEach((stroke) => {
+    for (let pointIndex = 1; pointIndex < stroke.length; pointIndex += 1) {
+      const point = stroke[pointIndex];
+      const previous = stroke[pointIndex - 1];
+      const stepLength = Math.hypot(point.x - previous.x, point.y - previous.y);
+      totalLength += stepLength;
+      let nearest = Number.POSITIVE_INFINITY;
+      let nearestSegment = -1;
+      let nearestPosition = 0;
+      order.forEach((vertexIndex, index) => {
+        const start = vertices[vertexIndex];
+        const end = vertices[order[(index + 1) % order.length]];
+        const projection = pointSegmentProjection(point, start, end);
+        if (projection.distance < nearest) {
+          nearest = projection.distance;
+          nearestSegment = index;
+          nearestPosition = projection.position;
+        }
+      });
+      if (nearest <= tolerance) {
+        nearLength += stepLength;
+        coverage[nearestSegment]?.add(Math.min(binsPerSegment - 1, Math.floor(nearestPosition * binsPerSegment)));
+      }
+    }
+  });
+  const substantiallyTraced = coverage.filter((bins) => bins.size >= 4).length;
+  const totalCoverage = coverage.reduce((sum, bins) => sum + bins.size, 0) / (coverage.length * binsPerSegment);
+  return (
+    totalLength > expectedLength * 0.76
+    && nearLength / Math.max(1, totalLength) > 0.84
+    && substantiallyTraced === coverage.length
+    && totalCoverage > 0.72
+  );
+}
+
+type HintLightSampler = {
+  size: number;
+  height: HTMLCanvasElement;
+  ink: HTMLCanvasElement;
+  output: HTMLCanvasElement;
+  heightContext: CanvasRenderingContext2D;
+  inkContext: CanvasRenderingContext2D;
+  outputContext: CanvasRenderingContext2D;
+  outputPixels: ImageData;
+};
+
+const HINT_LIGHT_SAMPLERS = new WeakMap<HTMLCanvasElement, HintLightSampler>();
+
+function hintLightSampler(target: HTMLCanvasElement) {
+  const cached = HINT_LIGHT_SAMPLERS.get(target);
+  if (cached) return cached;
+  const sampleSize = 58;
+  const height = document.createElement("canvas");
+  const ink = document.createElement("canvas");
+  const output = document.createElement("canvas");
+  height.width = height.height = ink.width = ink.height = output.width = output.height = sampleSize;
+  const heightContext = height.getContext("2d", { willReadFrequently: true });
+  const inkContext = ink.getContext("2d", { willReadFrequently: true });
+  const outputContext = output.getContext("2d");
+  if (!heightContext || !inkContext || !outputContext) return null;
+  const sampler = {
+    size: sampleSize,
+    height,
+    ink,
+    output,
+    heightContext,
+    inkContext,
+    outputContext,
+    outputPixels: outputContext.createImageData(sampleSize, sampleSize),
+  };
+  HINT_LIGHT_SAMPLERS.set(target, sampler);
+  return sampler;
+}
+
+function drawPhysicalHintLight(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  head: { x: number; y: number },
+  radius: number,
+  material: InkSurfaceLayer | null,
+  intensity = 1,
+) {
+  if (!material) return;
+  const sampler = hintLightSampler(context.canvas);
+  if (!sampler) return;
+  const patchRadius = clamp(24, radius * 0.34, 44);
+  const sourceScaleX = material.surface.width / Math.max(1, width);
+  const sourceScaleY = material.surface.height / Math.max(1, height);
+  const sourceX = (head.x - patchRadius) * sourceScaleX;
+  const sourceY = (head.y - patchRadius) * sourceScaleY;
+  const sourceWidth = patchRadius * 2 * sourceScaleX;
+  const sourceHeight = patchRadius * 2 * sourceScaleY;
+
+  sampler.heightContext.setTransform(1, 0, 0, 1, 0, 0);
+  sampler.heightContext.clearRect(0, 0, sampler.size, sampler.size);
+  sampler.heightContext.drawImage(
+    material.surface,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    0,
+    0,
+    sampler.size,
+    sampler.size,
+  );
+  sampler.inkContext.setTransform(1, 0, 0, 1, 0, 0);
+  sampler.inkContext.clearRect(0, 0, sampler.size, sampler.size);
+  sampler.inkContext.drawImage(
+    material.canvas,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    0,
+    0,
+    sampler.size,
+    sampler.size,
+  );
+
+  const heightPixels = sampler.heightContext.getImageData(0, 0, sampler.size, sampler.size).data;
+  const inkPixels = sampler.inkContext.getImageData(0, 0, sampler.size, sampler.size).data;
+  const output = sampler.outputPixels.data;
+  const midpoint = (sampler.size - 1) * 0.5;
+  const readHeight = (x: number, y: number, fallback: number) => {
+    const clampedX = Math.max(0, Math.min(sampler.size - 1, x));
+    const clampedY = Math.max(0, Math.min(sampler.size - 1, y));
+    const index = (clampedY * sampler.size + clampedX) * 4;
+    return heightPixels[index + 3] < 8 ? fallback : heightPixels[index] / 255;
+  };
+
+  for (let y = 0; y < sampler.size; y += 1) {
+    for (let x = 0; x < sampler.size; x += 1) {
+      const index = (y * sampler.size + x) * 4;
+      const paperAlpha = heightPixels[index + 3] / 255;
+      const normalizedX = (x - midpoint) / midpoint;
+      const normalizedY = (y - midpoint) / midpoint;
+      const radialDistance = Math.hypot(normalizedX, normalizedY);
+      if (paperAlpha < 0.025 || radialDistance >= 1) {
+        output[index + 3] = 0;
+        continue;
+      }
+
+      const centerHeight = heightPixels[index] / 255;
+      const gradientX = (readHeight(x - 1, y, centerHeight) - readHeight(x + 1, y, centerHeight)) * 7.4;
+      const gradientY = (readHeight(x, y - 1, centerHeight) - readHeight(x, y + 1, centerHeight)) * 7.4;
+      const normalLength = Math.hypot(gradientX, gradientY, 1);
+      const normalX = gradientX / normalLength;
+      const normalY = gradientY / normalLength;
+      const normalZ = 1 / normalLength;
+      const lightX = -normalizedX * 0.78;
+      const lightY = -normalizedY * 0.78;
+      const lightLength = Math.hypot(lightX, lightY, 1.16);
+      const diffuse = Math.max(0, (
+        normalX * lightX
+        + normalY * lightY
+        + normalZ * 1.16
+      ) / lightLength);
+      const attenuation = (1 - radialDistance * radialDistance) ** 2;
+      const localSlope = Math.hypot(gradientX, gradientY);
+      const microOcclusion = clamp(0.68, 1 - localSlope * 0.085, 1);
+      const pigment = inkPixels[index + 3] / 255;
+      const pigmentAbsorption = 1 - pigment * 0.78;
+      const thinSkin = clamp(0, (0.52 - centerHeight) * 2.6, 1);
+      const illuminated = (
+        0.105
+        + Math.max(0, diffuse - 0.48) * 0.56
+        + thinSkin * 0.075
+      ) * attenuation * microOcclusion * pigmentAbsorption * paperAlpha * intensity;
+      const occluded = Math.max(0, 0.67 - diffuse) * attenuation * paperAlpha * intensity;
+
+      if (occluded > illuminated * 0.78) {
+        output[index] = 62;
+        output[index + 1] = 31;
+        output[index + 2] = 27;
+        output[index + 3] = Math.round(clamp(0, occluded * 0.16, 0.09) * 255);
+      } else {
+        output[index] = Math.round(248 - thinSkin * 16);
+        output[index + 1] = Math.round(209 - thinSkin * 9);
+        output[index + 2] = Math.round(132 + thinSkin * 25);
+        output[index + 3] = Math.round(clamp(0, illuminated * 0.46, 0.24) * 255);
+      }
+    }
+  }
+
+  sampler.outputContext.putImageData(sampler.outputPixels, 0, 0);
+  context.save();
+  context.globalCompositeOperation = "source-over";
+  context.imageSmoothingEnabled = true;
+  context.filter = "blur(.32px)";
+  context.drawImage(
+    sampler.output,
+    head.x - patchRadius,
+    head.y - patchRadius,
+    patchRadius * 2,
+    patchRadius * 2,
+  );
+  context.restore();
+}
+
+function drawRitualCompletionBurst(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  sigil: Octagram,
+  phase: number,
+  kind: "summon" | "unseal",
+  material: InkSurfaceLayer | null,
+) {
+  const progress = clamp(0, phase, 1);
+  const strength = kind === "unseal" ? 1.72 : 1;
+  const x = sigil.x * width;
+  const y = sigil.y * height;
+  const sealRadius = sigil.radius * Math.min(width, height);
+  const attack = smoothstep(0, kind === "unseal" ? 0.055 : 0.08, progress);
+  const decay = 1 - smoothstep(kind === "unseal" ? 0.22 : 0.18, 1, progress);
+  const envelope = attack * decay;
+  const expansion = 1 - Math.pow(1 - progress, 3);
+  drawPhysicalHintLight(
+    context,
+    width,
+    height,
+    { x, y },
+    sealRadius * (kind === "unseal" ? 1.04 : 0.72),
+    material,
+    envelope * strength * 1.42,
+  );
+  if (envelope <= 0.001) return;
+
+  const vertices = octagramVertices(sigil, width, height);
+  const order = crossedOctagramOrder(vertices.length);
+  context.save();
+  context.globalCompositeOperation = "lighter";
+  context.lineCap = "round";
+  context.lineJoin = "round";
+
+  const glowRadius = sealRadius * (0.18 + expansion * (kind === "unseal" ? 1.02 : 0.7));
+  const glow = context.createRadialGradient(x, y, 0, x, y, glowRadius);
+  glow.addColorStop(0, `rgba(255,249,218,${envelope * (kind === "unseal" ? 0.72 : 0.48)})`);
+  glow.addColorStop(0.22, `rgba(235,181,99,${envelope * 0.34})`);
+  glow.addColorStop(0.58, `rgba(139,78,118,${envelope * (kind === "unseal" ? 0.2 : 0.11)})`);
+  glow.addColorStop(1, "rgba(92,58,86,0)");
+  context.fillStyle = glow;
+  context.beginPath();
+  context.arc(x, y, glowRadius, 0, Math.PI * 2);
+  context.fill();
+
+  context.strokeStyle = `rgba(255,222,151,${envelope * (kind === "unseal" ? 0.62 : 0.38)})`;
+  context.shadowColor = kind === "unseal" ? "rgba(190,105,66,.72)" : "rgba(158,83,60,.48)";
+  context.shadowBlur = kind === "unseal" ? 11 : 7;
+  context.lineWidth = kind === "unseal" ? 1.3 : 0.86;
+  context.beginPath();
+  order.forEach((vertexIndex, index) => {
+    const vertex = vertices[vertexIndex];
+    if (index === 0) context.moveTo(vertex.x, vertex.y);
+    else context.lineTo(vertex.x, vertex.y);
+  });
+  context.closePath();
+  context.stroke();
+
+  const waveCount = kind === "unseal" ? 2 : 1;
+  for (let wave = 0; wave < waveCount; wave += 1) {
+    const delayed = clamp(0, (progress - wave * 0.12) / (1 - wave * 0.12), 1);
+    const waveEnvelope = Math.sin(delayed * Math.PI) ** 1.35;
+    if (waveEnvelope <= 0.002) continue;
+    const waveRadius = sealRadius * (0.42 + delayed * (kind === "unseal" ? 1.45 : 0.88));
+    context.save();
+    context.translate(x, y);
+    context.rotate(sigil.rotation * 0.22 + wave * 0.67 + delayed * 0.34);
+    context.scale(1, 0.78 + wave * 0.08);
+    context.strokeStyle = `rgba(230,184,116,${waveEnvelope * envelope * (kind === "unseal" ? 0.4 : 0.24)})`;
+    context.shadowColor = "rgba(130,78,127,.44)";
+    context.shadowBlur = 7;
+    context.lineWidth = 0.58 + wave * 0.18;
+    context.beginPath();
+    context.arc(0, 0, waveRadius, -0.46 + wave * 0.39, Math.PI * (1.66 + wave * 0.13));
+    context.stroke();
+    context.restore();
+  }
+
+  const particleCount = kind === "unseal" ? 68 : 26;
+  for (let index = 0; index < particleCount; index += 1) {
+    const birth = hash(index * 37 + sigil.serial * 101 + (kind === "unseal" ? 503 : 211)) * 0.2;
+    const life = clamp(0, (progress - birth) / Math.max(0.001, 1 - birth), 1);
+    if (life <= 0 || life >= 1) continue;
+    const angle = hash(index * 61 + sigil.serial * 17) * Math.PI * 2 + sigil.rotation * 0.17;
+    const speed = sealRadius * (0.42 + hash(index * 43 + 17) * (kind === "unseal" ? 1.4 : 0.82));
+    const distance = speed * (1 - Math.pow(1 - life, 2));
+    const previousDistance = Math.max(0, distance - (1.6 + hash(index * 29 + 71) * 4.8) * strength);
+    const curl = Math.sin(life * Math.PI * (1.4 + hash(index + 89))) * (hash(index + 131) - 0.5) * sealRadius * 0.24;
+    const tangentX = -Math.sin(angle);
+    const tangentY = Math.cos(angle);
+    const gravity = life * life * sealRadius * (0.03 + hash(index + 191) * 0.12);
+    const endX = x + Math.cos(angle) * distance + tangentX * curl;
+    const endY = y + Math.sin(angle) * distance + tangentY * curl + gravity;
+    const startX = x + Math.cos(angle) * previousDistance + tangentX * curl * 0.82;
+    const startY = y + Math.sin(angle) * previousDistance + tangentY * curl * 0.82 + gravity * 0.84;
+    const particleAlpha = Math.sin(life * Math.PI) ** 1.7 * (kind === "unseal" ? 0.66 : 0.42);
+    const violet = index % 5 === 1 || index % 7 === 3;
+    context.strokeStyle = violet
+      ? `rgba(190,163,211,${particleAlpha * 0.66})`
+      : `rgba(246,191,99,${particleAlpha})`;
+    context.shadowColor = violet ? "rgba(119,84,148,.48)" : "rgba(184,90,47,.58)";
+    context.shadowBlur = kind === "unseal" ? 5 : 3;
+    context.lineWidth = 0.34 + hash(index * 13 + 5) * (kind === "unseal" ? 0.8 : 0.5);
+    context.beginPath();
+    context.moveTo(startX, startY);
+    context.lineTo(endX, endY);
+    context.stroke();
+  }
+
+  if (kind === "unseal") {
+    vertices.forEach((vertex, index) => {
+      const vertexPhase = clamp(0, (progress - index * 0.018) / 0.45, 1);
+      const flare = Math.sin(vertexPhase * Math.PI);
+      if (flare <= 0.002) return;
+      const flareRadius = 1.5 + flare * 5.4;
+      const vertexGlow = context.createRadialGradient(vertex.x, vertex.y, 0, vertex.x, vertex.y, flareRadius);
+      vertexGlow.addColorStop(0, `rgba(255,244,194,${flare * 0.72})`);
+      vertexGlow.addColorStop(1, "rgba(178,91,70,0)");
+      context.fillStyle = vertexGlow;
+      context.beginPath();
+      context.arc(vertex.x, vertex.y, flareRadius, 0, Math.PI * 2);
+      context.fill();
+    });
+  }
+  context.restore();
+}
+
+function drawTracingHint(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  sigil: Octagram,
+  phase: number,
+  material: InkSurfaceLayer | null,
+) {
+  const vertices = octagramVertices(sigil, width, height);
+  const order = crossedOctagramOrder(vertices.length);
+  const segments = order.map((vertexIndex, index) => {
+    const start = vertices[vertexIndex];
+    const end = vertices[order[(index + 1) % order.length]];
+    return { start, end, length: Math.hypot(end.x - start.x, end.y - start.y) };
+  });
+  const pointAt = (segment: typeof segments[number], progress: number) => {
+    const position = clamp(0, progress, 1);
+    return {
+      x: segment.start.x + (segment.end.x - segment.start.x) * position,
+      y: segment.start.y + (segment.end.y - segment.start.y) * position,
+    };
+  };
+
+  // Each chord is kindled independently. This teaches the shape without
+  // implying that the player must complete it as a single continuous stroke.
+  const segmentPosition = clamp(0, phase, 0.999999) * segments.length;
+  const segmentIndex = Math.floor(segmentPosition);
+  const segment = segments[segmentIndex] ?? segments[0];
+  if (!segment) return;
+  const headProgress = segmentPosition - Math.floor(segmentPosition);
+  const radius = sigil.radius * Math.min(width, height);
+  const dx = segment.end.x - segment.start.x;
+  const dy = segment.end.y - segment.start.y;
+  const segmentLength = Math.max(0.001, Math.hypot(dx, dy));
+  const normalX = -dy / segmentLength;
+  const normalY = dx / segmentLength;
+  const head = pointAt(segment, headProgress);
+  const spellTime = phase * 12;
+  const seedPhase = sigil.serial * 0.731;
+  const flux = clamp(0, (
+    0.53
+    + Math.sin(spellTime * 1.17 + seedPhase) * 0.22
+    + Math.sin(spellTime * 3.71 + seedPhase * 1.9) * 0.13
+    + Math.sin(spellTime * 8.23 + seedPhase * 0.47) * 0.065
+  ), 1);
+  const driftX = (
+    Math.sin(spellTime * 0.91 + seedPhase) * 0.54
+    + Math.sin(spellTime * 3.19 + 1.7) * 0.18
+  );
+  const driftY = (
+    Math.cos(spellTime * 1.07 + seedPhase * 0.73) * 0.48
+    + Math.sin(spellTime * 4.03 + 0.4) * 0.16
+  );
+  const luminousHead = { x: head.x + driftX, y: head.y + driftY };
+  drawPhysicalHintLight(context, width, height, luminousHead, radius, material, 0.88 + flux * 0.24);
+
+  // The incision survives only a short distance behind the light. As it ages,
+  // its crisp core vanishes first while a broader, weaker rust bloom remains,
+  // as though the displaced pigment were being pulled into the skin.
+  const trailSpan = 1.55;
+  const grooveBuckets = Array.from({ length: 4 }, () => new Path2D());
+  const grooveLife = [1, 0.68, 0.37, 0.13] as const;
+  const trailStart = Math.max(0, segmentPosition - trailSpan);
+  segments.forEach((engraved, index) => {
+    const visibleStart = Math.max(0, trailStart - index);
+    const visibleEnd = Math.min(1, segmentPosition - index);
+    if (visibleEnd <= visibleStart) return;
+    const pieces = Math.max(1, Math.ceil((visibleEnd - visibleStart) * 10));
+    for (let piece = 0; piece < pieces; piece += 1) {
+      const fromProgress = visibleStart + (visibleEnd - visibleStart) * piece / pieces;
+      const toProgress = visibleStart + (visibleEnd - visibleStart) * (piece + 1) / pieces;
+      const pathPosition = index + (fromProgress + toProgress) * 0.5;
+      const age = clamp(0, (segmentPosition - pathPosition) / trailSpan, 0.9999);
+      const bucket = Math.min(grooveBuckets.length - 1, Math.floor(age * grooveBuckets.length));
+      const from = pointAt(engraved, fromProgress);
+      const to = pointAt(engraved, toProgress);
+      grooveBuckets[bucket].moveTo(from.x, from.y);
+      grooveBuckets[bucket].lineTo(to.x, to.y);
+    }
+  });
+  const strokeGroove = (
+    color: string,
+    widthAtHead: number,
+    offsetX: number,
+    offsetY: number,
+    blurAtHead = 0,
+    broadensWithAge = 0,
+  ) => {
+    grooveBuckets.forEach((path, bucket) => {
+      context.save();
+      context.translate(offsetX, offsetY);
+      context.globalAlpha *= grooveLife[bucket];
+      context.strokeStyle = color;
+      context.lineWidth = widthAtHead + bucket * broadensWithAge;
+      context.filter = blurAtHead + bucket * 0.42 > 0
+        ? `blur(${blurAtHead + bucket * 0.42}px)`
+        : "none";
+      context.stroke(path);
+      context.restore();
+    });
+  };
+  context.save();
+  context.clip(paperPath(width, height));
+  context.globalCompositeOperation = "source-over";
+  context.lineCap = "round";
+  context.lineJoin = "round";
+
+  strokeGroove("rgba(142,58,38,.13)", 2.8, 0, 0, 1.05, 0.72);
+  strokeGroove("rgba(61,29,23,.34)", 1.18, 0.58, 0.76, 0, 0.18);
+  strokeGroove("rgba(255,235,190,.16)", 0.52, -0.46, -0.62);
+  strokeGroove("rgba(69,32,24,.42)", 0.7, 0, 0, 0, 0.12);
+
+  if (headProgress > 0.012) {
+    const freshStart = pointAt(segment, Math.max(0, headProgress - 0.2));
+    const freshInk = context.createLinearGradient(freshStart.x, freshStart.y, head.x, head.y);
+    freshInk.addColorStop(0, "rgba(117,47,33,0)");
+    freshInk.addColorStop(0.55, "rgba(151,65,40,.18)");
+    freshInk.addColorStop(1, "rgba(234,164,83,.54)");
+    context.globalCompositeOperation = "lighter";
+    context.filter = "blur(.42px)";
+    context.strokeStyle = freshInk;
+    context.shadowColor = "rgba(147,66,42,.38)";
+    context.shadowBlur = 4.5;
+    context.lineWidth = 1.06;
+    context.beginPath();
+    context.moveTo(freshStart.x, freshStart.y);
+    context.lineTo(head.x, head.y);
+    context.stroke();
+  }
+  context.restore();
+
+  context.save();
+  context.globalCompositeOperation = "lighter";
+  context.lineCap = "round";
+  context.lineJoin = "round";
+
+  // A faint spell-thread wakes beneath the moving point. It is thin enough to
+  // indicate the exact chord rather than becoming a second decorative line.
+  if (headProgress > 0.015) {
+    const filamentStart = pointAt(segment, Math.max(0, headProgress - 0.3));
+    const filament = context.createLinearGradient(filamentStart.x, filamentStart.y, head.x, head.y);
+    filament.addColorStop(0, "rgba(118,55,45,0)");
+    filament.addColorStop(0.52, "rgba(142,69,48,.06)");
+    filament.addColorStop(0.86, "rgba(205,133,72,.18)");
+    filament.addColorStop(1, "rgba(255,226,158,.42)");
+    context.strokeStyle = filament;
+    context.shadowColor = "rgba(125,70,106,.28)";
+    context.shadowBlur = 5;
+    context.lineWidth = 0.72;
+    context.beginPath();
+    context.moveTo(filamentStart.x, filamentStart.y);
+    context.lineTo(head.x, head.y);
+    context.stroke();
+  }
+
+  // The copper wake remains on the ruled line; only the dust motes below are
+  // allowed to drift away from it. This keeps the tracing hint mechanically
+  // honest while making it feel enchanted rather than electrically lit.
+  for (let index = 15; index >= 1; index -= 1) {
+    const tail = index / 15;
+    const fromProgress = headProgress - 0.34 * tail;
+    const toProgress = headProgress - 0.34 * (index - 1) / 15;
+    if (toProgress <= 0) continue;
+    const from = pointAt(segment, fromProgress);
+    const to = pointAt(segment, toProgress);
+    const alpha = (1 - tail) ** 1.45;
+    context.strokeStyle = `rgba(225, 157, 79, ${alpha * 0.34})`;
+    context.shadowColor = `rgba(145, 63, 46, ${alpha * 0.62})`;
+    context.shadowBlur = 2 + alpha * 8;
+    context.lineWidth = 0.6 + alpha * 1.35;
+    context.beginPath();
+    context.moveTo(from.x, from.y);
+    context.lineTo(to.x, to.y);
+    context.stroke();
+  }
+
+  const glowRadius = clamp(8, radius * 0.095, 14) * (0.9 + flux * 0.16);
+
+  // The corona is a superposition of drifting, anisotropic volumes. None of
+  // them retains a closed silhouette, so the light breathes like a small
+  // phenomenon rather than translating as a pre-drawn icon.
+  const lobes = [
+    { tint: [255, 231, 170], alpha: 0.32, stretch: 1.24, squash: 0.66, speed: 0.41 },
+    { tint: [194, 166, 211], alpha: 0.15, stretch: 0.86, squash: 0.52, speed: -0.57 },
+    { tint: [224, 142, 80], alpha: 0.2, stretch: 1.06, squash: 0.43, speed: 0.73 },
+  ] as const;
+  lobes.forEach((lobe, index) => {
+    const lobePhase = spellTime * lobe.speed + seedPhase + index * 2.13;
+    const offset = 0.65 + index * 0.42;
+    const lobeX = luminousHead.x + Math.cos(lobePhase * 1.31) * offset;
+    const lobeY = luminousHead.y + Math.sin(lobePhase * 0.87) * offset;
+    const breathing = 0.87 + flux * 0.16 + Math.sin(lobePhase * 2.37) * 0.055;
+    context.save();
+    context.translate(lobeX, lobeY);
+    context.rotate(lobePhase * 0.29);
+    context.scale(lobe.stretch * breathing, lobe.squash / Math.max(0.72, breathing));
+    const lobeGlow = context.createRadialGradient(0, 0, 0, 0, 0, glowRadius);
+    const [red, green, blue] = lobe.tint;
+    lobeGlow.addColorStop(0, `rgba(${red},${green},${blue},${lobe.alpha * (0.7 + flux * 0.3)})`);
+    lobeGlow.addColorStop(0.38, `rgba(${red},${green},${blue},${lobe.alpha * 0.45})`);
+    lobeGlow.addColorStop(1, `rgba(${red},${green},${blue},0)`);
+    context.fillStyle = lobeGlow;
+    context.beginPath();
+    context.arc(0, 0, glowRadius, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+  });
+
+  const coreGlow = context.createRadialGradient(
+    luminousHead.x,
+    luminousHead.y,
+    0,
+    luminousHead.x,
+    luminousHead.y,
+    glowRadius * 0.72,
+  );
+  coreGlow.addColorStop(0, `rgba(255,249,218,${0.76 + flux * 0.2})`);
+  coreGlow.addColorStop(0.2, `rgba(242,203,125,${0.4 + flux * 0.18})`);
+  coreGlow.addColorStop(0.62, "rgba(142,75,75,.13)");
+  coreGlow.addColorStop(1, "rgba(94,66,112,0)");
+  context.fillStyle = coreGlow;
+  context.beginPath();
+  context.arc(luminousHead.x, luminousHead.y, glowRadius * 0.72, 0, Math.PI * 2);
+  context.fill();
+
+  // Open, unequally timed filaments continuously shed and reform around the
+  // core. Their curves have no rotational symmetry and never close into a
+  // recognisable emblem.
+  for (let wisp = 0; wisp < 4; wisp += 1) {
+    const wispPhase = spellTime * (0.46 + wisp * 0.073) + seedPhase * (1 + wisp * 0.21) + wisp * 1.91;
+    const startRadius = 1.1 + wisp * 0.38;
+    const reach = 4.2 + wisp * 1.05 + Math.sin(wispPhase * 1.77) * 1.25;
+    const startX = luminousHead.x + Math.cos(wispPhase) * startRadius;
+    const startY = luminousHead.y + Math.sin(wispPhase) * startRadius;
+    const endAngle = wispPhase + 0.74 + Math.sin(wispPhase * 0.69) * 0.42;
+    const endX = luminousHead.x + Math.cos(endAngle) * reach;
+    const endY = luminousHead.y + Math.sin(endAngle) * reach;
+    const controlX = luminousHead.x + Math.cos(wispPhase + 1.18) * reach * 0.72;
+    const controlY = luminousHead.y + Math.sin(wispPhase + 1.18) * reach * 0.72;
+    context.strokeStyle = wisp % 3 === 1
+      ? `rgba(192,166,210,${0.12 + flux * 0.12})`
+      : `rgba(245,203,132,${0.16 + flux * 0.15})`;
+    context.shadowColor = wisp % 3 === 1 ? "rgba(118,86,142,.42)" : "rgba(180,98,49,.42)";
+    context.shadowBlur = 3 + flux * 3;
+    context.lineWidth = 0.28 + (1 - wisp / 4) * 0.24;
+    context.beginPath();
+    context.moveTo(startX, startY);
+    context.quadraticCurveTo(controlX, controlY, endX, endY);
+    context.stroke();
+  }
+
+  // Dust spirals around the line with deterministic motion so it feels alive
+  // without the harsh random flicker of an electrical particle effect.
+  for (let mote = 0; mote < 7; mote += 1) {
+    const age = (headProgress * 11.5 + mote * 0.137 + sigil.serial * 0.071) % 1;
+    const behind = 0.035 + age * 0.2;
+    const base = pointAt(segment, headProgress - behind);
+    const side = Math.sin(spellTime * (1.22 + mote * 0.047) + mote * 2.19 + seedPhase) * (1.4 + age * 4.2);
+    const lift = Math.cos(spellTime * 0.73 + mote * 1.73 + seedPhase * 0.4) * 0.9;
+    const moteX = base.x + normalX * side + dx / segmentLength * lift;
+    const moteY = base.y + normalY * side + dy / segmentLength * lift;
+    const moteAlpha = Math.sin(age * Math.PI) * 0.52;
+    context.fillStyle = mote % 3 === 0
+      ? `rgba(187,161,206,${moteAlpha * 0.52})`
+      : `rgba(242,190,105,${moteAlpha})`;
+    context.shadowColor = mote % 3 === 0 ? "rgba(132,99,154,.48)" : "rgba(185,99,49,.52)";
+    context.shadowBlur = 3.5;
+    context.beginPath();
+    context.arc(moteX, moteY, 0.32 + (1 - age) * 0.55, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  const arrival = smoothstep(0.78, 1, headProgress);
+  const arrivalPulse = Math.sin(arrival * Math.PI);
+  if (arrivalPulse > 0.01) {
+    context.strokeStyle = `rgba(214,169,116,${arrivalPulse * 0.34})`;
+    context.shadowColor = "rgba(126,77,126,.42)";
+    context.shadowBlur = 5;
+    context.lineWidth = 0.55;
+    context.beginPath();
+    context.arc(segment.end.x, segment.end.y, 2.6 + arrival * 6.4, 0, Math.PI * 2);
+    context.stroke();
+  }
+
+  context.shadowColor = `rgba(255,221,153,${0.48 + flux * 0.34})`;
+  context.shadowBlur = 2.8 + flux * 3.2;
+  context.fillStyle = `rgba(255,249,221,${0.84 + flux * 0.14})`;
+  context.beginPath();
+  context.arc(luminousHead.x, luminousHead.y, 0.72 + flux * 0.58, 0, Math.PI * 2);
+  context.fill();
+  context.restore();
+}
+
+function drawOccultMechanism(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  sigil: Octagram,
+  phase: number,
+) {
+  if (phase <= 0) return;
+  const eased = 1 - Math.pow(1 - clamp(0, phase, 1), 4);
+  const x = sigil.x * width;
+  const y = sigil.y * height;
+  const radius = sigil.radius * Math.min(width, height);
+  const rust = `rgba(111, 48, 36, ${0.48 * eased})`;
+  context.save();
+  context.globalCompositeOperation = "source-over";
+  context.strokeStyle = rust;
+  context.fillStyle = `rgba(111, 48, 36, ${0.32 * eased})`;
+  context.shadowColor = `rgba(137, 58, 36, ${0.34 * eased})`;
+  context.shadowBlur = 5 + eased * 11;
+  context.lineWidth = 0.72;
+
+  [1.2, 1.47, 1.76].forEach((scale, index) => {
+    context.save();
+    context.translate(x, y);
+    context.rotate((index % 2 === 0 ? 1 : -1) * eased * (0.52 + index * 0.31) + sigil.rotation * 0.2);
+    context.setLineDash(index === 1 ? [2, 7, 1, 5] : index === 2 ? [1, 11] : []);
+    context.beginPath();
+    context.ellipse(0, 0, radius * scale, radius * scale * (0.84 + index * 0.035), index * 0.19, 0, Math.PI * 2);
+    context.stroke();
+    const teeth = 8 + index * 4;
+    for (let tooth = 0; tooth < teeth; tooth += 1) {
+      const angle = tooth / teeth * Math.PI * 2;
+      const orbitX = Math.cos(angle) * radius * scale;
+      const orbitY = Math.sin(angle) * radius * scale * (0.84 + index * 0.035);
+      context.beginPath();
+      context.arc(orbitX, orbitY, tooth % 3 === 0 ? 1.35 : 0.62, 0, Math.PI * 2);
+      context.fill();
+    }
+    context.restore();
+  });
+
+  const pageAnchors = [
+    { x: width * 0.15, y: height * 0.21 },
+    { x: width * 0.84, y: height * 0.25 },
+    { x: width * 0.82, y: height * 0.78 },
+    { x: width * 0.17, y: height * 0.81 },
+  ];
+  context.shadowBlur = 3 + eased * 6;
+  pageAnchors.forEach((anchor, index) => {
+    const angle = sigil.rotation + index * Math.PI * 0.5 + eased * (index % 2 ? -0.22 : 0.22);
+    const startX = x + Math.cos(angle) * radius * 1.76;
+    const startY = y + Math.sin(angle) * radius * 1.46;
+    context.beginPath();
+    context.moveTo(startX, startY);
+    context.bezierCurveTo(
+      startX + (anchor.x - startX) * 0.33,
+      startY + (index % 2 ? -1 : 1) * 36 * eased,
+      anchor.x - (anchor.x - startX) * 0.22,
+      anchor.y + (index % 2 ? 1 : -1) * 26 * eased,
+      anchor.x,
+      anchor.y,
+    );
+    context.stroke();
+    context.save();
+    context.translate(anchor.x, anchor.y);
+    context.rotate(angle * 0.3);
+    context.beginPath();
+    context.arc(0, 0, 7 + eased * 5, 0, Math.PI * 2);
+    context.stroke();
+    context.beginPath();
+    context.moveTo(-5, 0);
+    context.lineTo(5, 0);
+    context.moveTo(0, -5);
+    context.lineTo(0, 5);
+    context.stroke();
+    context.restore();
+  });
+  context.restore();
+}
+
 function drawMagic(
   context: CanvasRenderingContext2D,
   width: number,
@@ -1383,33 +2733,43 @@ function drawMagic(
   phase: number,
   locale: Locale,
   points: InkPoint[],
+  ritual: RitualState,
   parts: { geometry?: boolean; phrase?: boolean } = {},
 ) {
   if (phase <= 0) return;
   const drawGeometry = parts.geometry ?? true;
   const drawPhrase = parts.phrase ?? true;
-  const x = cast.x * width;
-  const y = cast.y * height;
+  const x = (ritual.sigil?.x ?? cast.x) * width;
+  const y = (ritual.sigil?.y ?? cast.y) * height;
   const eased = 1 - Math.pow(1 - clamp(0, phase, 1), 3);
-  const vertices = sigilPoints(points);
+  const ritualVertices = ritual.sigil ? octagramVertices(ritual.sigil, width, height) : null;
+  const vertices = ritualVertices ?? sigilPoints(points);
   if (drawGeometry) {
+    const guideOpacity = ritual.sigil && ritual.stage === "summoned" ? ritual.guideOpacity : 1;
+    const sealOpacity = ritual.sigil && ritual.stage === "summoned" ? 0.62 : 0.7;
     context.save();
+    context.globalAlpha *= guideOpacity;
     context.globalCompositeOperation = "source-over";
-    context.strokeStyle = `rgba(87, 42, 32, ${0.52 * eased})`;
-    context.fillStyle = `rgba(87, 42, 32, ${0.56 * eased})`;
-    context.lineWidth = 0.9;
+    context.strokeStyle = `rgba(111, 48, 36, ${sealOpacity * eased})`;
+    context.fillStyle = `rgba(111, 48, 36, ${0.64 * eased})`;
+    context.shadowColor = `rgba(145, 58, 37, ${(ritual.sigil && ritual.stage === "summoned" ? 0.25 : 0.48) * eased})`;
+    context.shadowBlur = ritual.sigil ? 4 + eased * 6 : 3;
+    context.lineWidth = ritual.sigil ? 1.05 : 0.9;
     if (vertices.length >= 3) {
       // The seal is derived from the actual hand movement. Its geometry can
       // never be a stock, perfectly centred magic circle.
-      const step = vertices.length % 2 === 0 ? 3 : 2;
-      const order = vertices.length >= 7
-        ? Array.from({ length: vertices.length }, (_, index) => (index * step) % vertices.length)
-        : vertices.map((_, index) => index);
+      const step = ritualVertices ? 3 : vertices.length % 2 === 0 ? 3 : 2;
+      const order = ritualVertices
+        ? crossedOctagramOrder(vertices.length)
+        : vertices.length >= 7
+          ? Array.from({ length: vertices.length }, (_, index) => (index * step) % vertices.length)
+          : vertices.map((_, index) => index);
       context.beginPath();
       order.forEach((vertexIndex, index) => {
         const vertex = vertices[vertexIndex];
-        const px = x + (vertex.x - x) * (0.84 + hash(index + cast.serial * 13) * 0.08);
-        const py = y + (vertex.y - y) * (0.84 + hash(index + cast.serial * 17) * 0.08);
+        const scale = ritualVertices ? 1 : 0.84 + hash(index + cast.serial * 13) * 0.08;
+        const px = x + (vertex.x - x) * scale;
+        const py = y + (vertex.y - y) * scale;
         if (index === 0) context.moveTo(px, py);
         else context.lineTo(px, py);
       });
@@ -1423,10 +2783,31 @@ function drawMagic(
         context.arc(px, py, 0.7 + hash(index + cast.serial) * 1.25, 0, Math.PI * 2);
         context.fill();
       });
+
+      const extentX = Math.max(42, Math.max(...vertices.map((vertex) => Math.abs(vertex.x - x))) * (ritualVertices ? 1.18 : 1.14));
+      const extentY = Math.max(32, Math.max(...vertices.map((vertex) => Math.abs(vertex.y - y))) * (ritualVertices ? 1.18 : 1.08));
+      context.save();
+      context.shadowBlur = ritual.sigil ? 8 : 0;
+      context.setLineDash([1, 5, 2, 8]);
+      context.globalAlpha *= 0.62;
+      context.beginPath();
+      context.ellipse(x, y, extentX, extentY, -0.035 + hash(cast.serial + 91) * 0.08, 0.18, Math.PI * 1.82);
+      context.stroke();
+      context.setLineDash([]);
+      context.globalAlpha *= 0.55;
+      context.beginPath();
+      context.ellipse(x + 1.4, y - 0.8, extentX * 1.08, extentY * 1.12, 0.025, 2.65, Math.PI * 2 + 2.27);
+      context.stroke();
+      context.restore();
     }
     context.restore();
 
+    if (ritual.stage === "unsealed" && ritual.sigil) {
+      drawOccultMechanism(context, width, height, ritual.sigil, ritual.mechanismPhase);
+    }
+
     context.save();
+    context.globalAlpha *= guideOpacity;
     context.strokeStyle = `rgba(87, 42, 32, ${0.13 * eased})`;
     context.setLineDash([1, 11]);
     context.lineWidth = 0.8;
@@ -1455,10 +2836,44 @@ function drawMagic(
   if (drawPhrase) {
     context.save();
     context.font = handFont(locale, width < 700 ? 11 : 13);
+    const invocationRadius = ritual.sigil
+      ? ritual.sigil.radius * Math.min(width, height) * 1.36
+      : clamp(width < 700 ? 54 : 72, Math.min(width, height) * 0.11, width < 700 ? 82 : 118);
+    ["memoria", "ordo", "limen", cast.name.toLocaleLowerCase()].forEach((word, index) => {
+      const angle = -Math.PI * 0.72 + index * Math.PI * 0.49 + (hash(cast.serial + index * 17) - 0.5) * 0.12;
+      context.save();
+      context.translate(x + Math.cos(angle) * invocationRadius, y + Math.sin(angle) * invocationRadius * 0.72);
+      context.rotate(angle + Math.PI * 0.5);
+      drawInkLine(context, word, 0, 0, {
+        align: "center",
+        color: `rgba(87,42,32,${0.38 * eased})`,
+        alpha: eased,
+        pressure: 0.56,
+        absorption: 0.84,
+        letterSpacing: 0.035,
+      });
+      context.restore();
+    });
     drawWrapped(context, COPY[locale].hidden, width * (width < 700 ? 0.18 : 0.58), height * (width < 700 ? 0.9 : 0.84), width * (width < 700 ? 0.48 : 0.28), width < 700 ? 17 : 20, {
       maxLines: 3,
       color: `rgba(87,42,32,${0.62 * eased})`,
     });
+    if (ritual.stage !== "idle") {
+      context.font = handFont(locale, width < 700 ? 10 : 12.5);
+      drawWrapped(
+        context,
+        ritual.stage === "summoned" ? COPY[locale].traceStar : COPY[locale].harmlessMechanism,
+        x,
+        clamp(height * 0.18, y + invocationRadius * 0.88, height * 0.88),
+        width * (width < 700 ? 0.48 : 0.3),
+        width < 700 ? 16 : 19,
+        {
+          maxLines: 2,
+          color: `rgba(111,48,36,${0.66 * eased})`,
+          align: "center",
+        },
+      );
+    }
     context.restore();
   }
 }
@@ -1470,12 +2885,19 @@ function paintScene(
   content: SiteContent,
   locale: Locale,
   textRenderer: PhysicalInkTextRenderer | null,
+  parchmentRenderer: PhysicalParchmentRenderer | null,
 ) {
   const context = canvas.getContext("2d");
   if (!context || size.width <= 0 || size.height <= 0) return;
+  canvas.dataset.parchmentRenderer = parchmentRenderer?.available ? "height-field" : "canvas-fallback";
+  canvas.dataset.textRenderer = textRenderer?.available ? "troika-sdf" : "canvas-fallback";
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.clearRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(materialLayer(canvas, size), 0, 0);
+  context.drawImage(
+    parchmentRenderer?.available ? deskLayer(canvas, size) : materialLayer(canvas, size),
+    0,
+    0,
+  );
 
   const inkSurface = inkSurfaceLayer(canvas, size);
   const inkContext = inkSurface.canvas.getContext("2d");
@@ -1493,25 +2915,11 @@ function paintScene(
     : null;
   if (gpuText) INK_TEXT_COLLECTIONS.set(inkContext, gpuText);
   drawFolio(inkContext, size.width, size.height, locale, state.active);
-  drawChapter(inkContext, size.width, size.height, state.active, content, locale, state.chapterPhase);
-  drawNavigation(
-    inkContext,
-    size.width,
-    size.height,
-    locale,
-    [COPY[locale].home, content.navigation.work, content.navigation.career, content.navigation.products, content.navigation.contact],
-    state.active,
-    state.awakened,
-  );
-  inkContext.font = handFont(locale, size.width < 700 ? 8.5 : 10);
-  drawInkLine(inkContext, COPY[locale].draw, size.width * (size.width < 700 ? 0.15 : 0.34), size.height * 0.95, {
-    alpha: state.awakened ? 0.28 : 0.47,
-    maxWidth: size.width * (size.width < 700 ? 0.48 : 0.34),
-  });
+  drawPalimpsestChapter(inkContext, size.width, size.height, state, content, locale);
   if (gpuText && textRenderer) {
     // Queue the awakened phrase before the GPU pass; its sigil and the user's
     // physical stroke are deliberately drawn afterwards, above static type.
-    drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, state.points, {
+    drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, state.points, state.ritual, {
       geometry: false,
       phrase: true,
     });
@@ -1519,20 +2927,29 @@ function paintScene(
     const textCanvas = textRenderer.renderFrame(gpuText.runs, size, inkSurface.surface);
     if (!textRenderer.available) {
       inkContext.restore();
-      paintScene(canvas, size, state, content, locale, null);
+      paintScene(canvas, size, state, content, locale, null, parchmentRenderer);
       return;
     }
     inkContext.setTransform(1, 0, 0, 1, 0, 0);
     inkContext.drawImage(textCanvas, 0, 0);
+    const glyphContext = inkSurface.glyph.getContext("2d");
+    if (glyphContext) {
+      glyphContext.clearRect(0, 0, inkSurface.glyph.width, inkSurface.glyph.height);
+      glyphContext.drawImage(textCanvas, 0, 0);
+    }
     inkContext.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
+    absorbPalimpsestInk(inkContext, state.palimpsest.progress, inkSurface.absorption, inkSurface.capillary);
+    state.ritualStrokes.forEach((stroke) => drawInkStroke(inkContext, stroke));
     drawInkStroke(inkContext, state.points);
-    drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, state.points, {
+    drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, state.points, state.ritual, {
       geometry: true,
       phrase: false,
     });
   } else {
+    absorbPalimpsestInk(inkContext, state.palimpsest.progress, inkSurface.absorption, inkSurface.capillary);
+    state.ritualStrokes.forEach((stroke) => drawInkStroke(inkContext, stroke));
     drawInkStroke(inkContext, state.points);
-    drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, state.points);
+    drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, state.points, state.ritual);
   }
   inkContext.restore();
 
@@ -1548,6 +2965,40 @@ function paintScene(
   inkContext.globalAlpha = 0.78;
   inkContext.drawImage(inkSurface.grooves, 0, 0);
   inkContext.restore();
+
+  if (parchmentRenderer?.available) {
+    const physicalSurface = parchmentRenderer.renderFrame(size, {
+      albedo: inkSurface.albedo,
+      height: inkSurface.surface,
+      ink: inkSurface.canvas,
+    }, {
+      palimpsest: Math.sin(clamp(0, state.palimpsest.progress, 1) * Math.PI) * 0.16,
+      mechanism: state.ritual.stage === "unsealed"
+        ? Math.sin(clamp(0, state.ritual.mechanismPhase, 1) * Math.PI)
+        : 0,
+      mechanismCenter: state.ritual.sigil
+        ? { x: state.ritual.sigil.x, y: state.ritual.sigil.y }
+        : undefined,
+    });
+    if (!parchmentRenderer.available) {
+      paintScene(canvas, size, state, content, locale, textRenderer, null);
+      return;
+    }
+    context.save();
+    context.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
+    context.shadowColor = "rgba(0,0,0,.62)";
+    context.shadowBlur = size.width < 700 ? 16 : 30;
+    context.shadowOffsetX = size.width < 700 ? 2 : 7;
+    context.shadowOffsetY = size.width < 700 ? 8 : 16;
+    context.fillStyle = "#1a100b";
+    context.fill(paperPath(size.width, size.height));
+    context.restore();
+    context.save();
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.drawImage(physicalSurface, 0, 0, canvas.width, canvas.height);
+    context.restore();
+    return;
+  }
 
   // Iron-gall ink first blooms into the skin, then leaves a sharper pigment
   // body above it.  Sharing these two passes is what makes type and gesture
@@ -1604,65 +3055,105 @@ function ScreenReaderChapter({ active, content, locale }: { active: number; cont
   if (view === "work") {
     return (
       <>
-        <h2>{copy.work}</h2>
-        <p>{content.sections.workIntro}</p>
-        {content.work.map((item) => <article key={item.title}><h3>{item.title}</h3><p>{item.summary}</p><p>{item.stack}</p></article>)}
+        <h2>{copy.workTitle}</h2>
+        <p>{copy.commissionIntro}</p>
+        {content.work.map((item) => <article key={item.title}><h3>{item.title}</h3><p>{item.summary}</p><dl><dt>{copy.fit}</dt><dd>{item.fit}</dd><dt>{copy.scope}</dt><dd>{item.scope}</dd><dt>{copy.outcome}</dt><dd>{item.outcome}</dd><dt>{copy.tools}</dt><dd>{item.stack}</dd></dl></article>)}
       </>
     );
   }
   if (view === "career") {
     return (
       <>
-        <h2>{copy.career}</h2>
-        <p>{content.sections.careerIntro}</p>
-        {content.career.map((item) => <article key={`${item.company}-${item.period}`}><h3>{item.company}</h3><p>{item.period} — {item.role}</p><p>{item.summary}</p></article>)}
+        <h2>{copy.careerTitle}</h2>
+        <p>{copy.careerIntro}</p>
+        {content.career.map((item) => <article key={`${item.company}-${item.period}`}><h3>{item.company}</h3><p>{item.period} — {item.role}</p><p>{item.summary}</p><ul>{item.details.map((detail) => <li key={detail}>{detail}</li>)}</ul><p>{item.stack}</p></article>)}
       </>
     );
   }
   if (view === "products") {
     return (
       <>
-        <h2>{copy.products}</h2>
-        <p>{content.sections.productsIntro}</p>
-        {content.products.map((item) => <article key={item.name}><h3>{item.name}</h3><p>{item.kind}</p><p>{item.description}</p></article>)}
+        <h2>{copy.productsTitle}</h2>
+        <p>{copy.productsIntro}</p>
+        {content.products.map((item) => <article key={item.name}><h3>{item.name}</h3><p>{item.kind}</p><p>{item.description}</p><p>{copy.purpose}: {item.purpose}</p><p>{item.stack}</p><p><a href={item.website}>{content.labels.website}</a> · <a href={item.github}>GitHub</a></p></article>)}
       </>
     );
   }
-  if (view === "contact") return <><h2>{copy.contact}</h2><p>{copy.correspondence}</p></>;
+  if (view === "contact") return <><h2>{copy.contactTitle}</h2><p>{copy.letterOpening}</p><ul>{SOCIAL_LINKS.map((link) => <li key={link.href}><a href={link.href}>{link.label}</a></li>)}</ul></>;
   return <><h2>{copy.home}</h2><p>{copy.homeCopy}</p><p>{content.hero.introduction}</p><p>{copy.maxim}</p></>;
 }
 
 const STYLES = `
   @font-face {
+    font-family: "Ischca IM Fell English";
+    src: url("${assetUrl("fonts/IMFellEnglish-Portfolio.woff")}") format("woff");
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Ischca IM Fell English";
+    src: url("${assetUrl("fonts/IMFellEnglish-Portfolio-Italic.woff")}") format("woff");
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Ischca IM Fell English SC";
+    src: url("${assetUrl("fonts/IMFellEnglishSC-Portfolio.woff")}") format("woff");
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Ischca Fondamento";
+    src: url("${assetUrl("fonts/Fondamento-Portfolio-Italic.woff")}") format("woff");
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+  }
+  @font-face {
     font-family: "Ischca Yuji Syuku";
-    src: url("/fonts/YujiSyuku-Portfolio.woff") format("woff");
+    src: url("${assetUrl("fonts/YujiSyuku-Portfolio.woff")}") format("woff");
     font-style: normal;
     font-weight: 400;
     font-display: swap;
   }
   @font-face {
     font-family: "Ischca Noto Serif JP";
-    src: url("/fonts/NotoSerifJP-Portfolio.woff") format("woff");
+    src: url("${assetUrl("fonts/NotoSerifJP-Portfolio.woff")}") format("woff");
     font-style: normal;
     font-weight: 400;
     font-display: swap;
   }
   @font-face {
     font-family: "Ischca Noto Serif JP";
-    src: url("/fonts/NotoSerifJP-Portfolio-Semibold.woff") format("woff");
+    src: url("${assetUrl("fonts/NotoSerifJP-Portfolio-Semibold.woff")}") format("woff");
     font-style: normal;
     font-weight: 600;
     font-display: swap;
   }
   .canvas-grimoire-experience {
+    --grimoire-stage-height: clamp(720px, 100svh, 960px);
     position: relative;
     width: 100%;
-    height: clamp(720px, calc(100svh - 76px), 900px);
-    min-height: 720px;
-    overflow: hidden;
+    height: calc(var(--grimoire-stage-height) + 800svh);
+    min-height: calc(720px + 800svh);
+    overflow: visible;
     isolation: isolate;
     background: #0c0907;
     color: #2d1c13;
+  }
+  .canvas-grimoire-stage {
+    position: sticky;
+    z-index: 1;
+    top: 0;
+    width: 100%;
+    height: var(--grimoire-stage-height);
+    overflow: hidden;
+    isolation: isolate;
+    background: #0c0907;
+    perspective: 1800px;
   }
   .canvas-grimoire-surface {
     position: absolute;
@@ -1671,19 +3162,663 @@ const STYLES = `
     width: 100%;
     height: 100%;
     display: block;
-    touch-action: none;
+    touch-action: pan-y;
     user-select: none;
     -webkit-user-select: none;
     cursor: default;
   }
-  .canvas-grimoire-nav,
+  .canvas-grimoire-hint {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+  }
+  .canvas-grimoire-stage[data-verso] .canvas-grimoire-surface,
+  .canvas-grimoire-stage[data-verso] .canvas-grimoire-hint {
+    transform-origin: 50% 50%;
+    backface-visibility: hidden;
+    will-change: transform, filter, opacity;
+  }
+  .canvas-grimoire-stage[data-verso="entering"] .canvas-grimoire-surface,
+  .canvas-grimoire-stage[data-verso="entering"] .canvas-grimoire-hint {
+    animation: grimoire-folio-turn-out 3.1s cubic-bezier(.68, .01, .18, 1) both;
+  }
+  .canvas-grimoire-stage[data-verso="active"] .canvas-grimoire-surface,
+  .canvas-grimoire-stage[data-verso="active"] .canvas-grimoire-hint,
+  .canvas-grimoire-stage[data-verso="recalling"] .canvas-grimoire-surface,
+  .canvas-grimoire-stage[data-verso="recalling"] .canvas-grimoire-hint {
+    opacity: 0;
+    transform: rotateY(-180deg) scale(.9);
+  }
+  .canvas-grimoire-stage[data-verso="closing"] .canvas-grimoire-surface,
+  .canvas-grimoire-stage[data-verso="closing"] .canvas-grimoire-hint {
+    animation: grimoire-folio-turn-in 2.2s cubic-bezier(.62, .02, .18, 1) both;
+  }
+  @keyframes grimoire-folio-turn-out {
+    0% { opacity: 1; transform: rotateY(0deg) scale(1); filter: brightness(1); }
+    35% { opacity: 1; transform: rotateY(-38deg) scale(.97); filter: brightness(.72) contrast(1.08); }
+    62% { opacity: .72; transform: rotateY(-104deg) scale(.93); filter: brightness(.38) contrast(1.35); }
+    100% { opacity: 0; transform: rotateY(-180deg) scale(.9); filter: brightness(.12) contrast(1.5); }
+  }
+  @keyframes grimoire-folio-turn-in {
+    0% { opacity: 0; transform: rotateY(-180deg) scale(.9); filter: brightness(.18) contrast(1.45); }
+    48% { opacity: .76; transform: rotateY(-72deg) scale(.95); filter: brightness(.6) contrast(1.18); }
+    100% { opacity: 1; transform: rotateY(0deg) scale(1); filter: brightness(1) contrast(1); }
+  }
+  .verso-exploded {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 48%, rgba(18, 70, 88, .22), transparent 44%),
+      linear-gradient(145deg, #020608 0%, #030a0f 54%, #010304 100%);
+    color: #c9f6ff;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    letter-spacing: .08em;
+    isolation: isolate;
+  }
+  .verso-exploded[data-phase="priming"] {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .verso-exploded::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background:
+      linear-gradient(rgba(88, 222, 248, .024) 1px, transparent 1px) 0 0 / 100% 4px,
+      radial-gradient(circle at 50% 50%, transparent 48%, rgba(0, 0, 0, .58) 100%);
+    mix-blend-mode: screen;
+  }
+  .verso-exploded::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    border: 1px solid rgba(98, 224, 250, .13);
+    box-shadow: inset 0 0 140px rgba(0, 3, 5, .82);
+  }
+  .verso-exploded[data-phase="entering"] {
+    animation: verso-space-in 3.1s cubic-bezier(.68, .01, .18, 1) both;
+  }
+  .verso-exploded[data-phase="closing"] {
+    animation: verso-space-out 2.2s cubic-bezier(.62, .02, .18, 1) both;
+  }
+  @keyframes verso-space-in {
+    0% { opacity: 0; transform: rotateY(180deg) scale(.9); filter: brightness(.18); }
+    52% { opacity: .8; transform: rotateY(68deg) scale(.95); filter: brightness(.68); }
+    100% { opacity: 1; transform: rotateY(0deg) scale(1); filter: brightness(1); }
+  }
+  @keyframes verso-space-out {
+    0% { opacity: 1; transform: rotateY(0deg) scale(1); }
+    48% { opacity: .72; transform: rotateY(86deg) scale(.94); }
+    100% { opacity: 0; transform: rotateY(180deg) scale(.9); }
+  }
+  .verso-exploded-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+  .verso-hud-header,
+  .verso-layer-readout,
+  .verso-telemetry,
+  .verso-instruction,
+  .verso-return,
+  .verso-inspector,
+  .verso-hold-indicator {
+    position: absolute;
+    z-index: 3;
+  }
+  .verso-hold-indicator {
+    --hold-x: 0px;
+    --hold-y: 0px;
+    --hold-progress: 0deg;
+    top: 0;
+    left: 0;
+    display: grid;
+    width: 58px;
+    height: 58px;
+    place-items: center;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(calc(var(--hold-x) - 29px), calc(var(--hold-y) - 29px), 0) scale(.78);
+    transition: opacity 90ms linear, transform 160ms cubic-bezier(.2, .8, .2, 1);
+  }
+  .verso-hold-indicator[data-active="true"] {
+    opacity: 1;
+    transform: translate3d(calc(var(--hold-x) - 29px), calc(var(--hold-y) - 29px), 0) scale(1);
+  }
+  .verso-hold-indicator::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: conic-gradient(from -90deg, rgba(164, 246, 255, .98) var(--hold-progress), rgba(82, 216, 244, .14) 0);
+    filter: drop-shadow(0 0 7px rgba(93, 228, 255, .62));
+    -webkit-mask: radial-gradient(circle, transparent 57%, #000 59%);
+    mask: radial-gradient(circle, transparent 57%, #000 59%);
+  }
+  .verso-hold-indicator::after {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #e7fcff;
+    box-shadow: 0 0 12px 3px rgba(95, 229, 255, .72);
+  }
+  .verso-hold-indicator i {
+    position: absolute;
+    inset: 9px;
+    border: 1px solid rgba(107, 228, 251, .24);
+    border-radius: 50%;
+  }
+  .verso-hold-indicator span {
+    position: absolute;
+    top: 66px;
+    left: 50%;
+    width: max-content;
+    color: rgba(193, 244, 253, .72);
+    font-size: .48rem;
+    letter-spacing: .18em;
+    transform: translateX(-50%);
+    text-shadow: 0 0 8px rgba(75, 214, 244, .5);
+  }
+  .verso-focus-viewport {
+    position: absolute;
+    z-index: 2;
+    top: 12%;
+    bottom: 12%;
+    left: 2.5%;
+    width: 57%;
+    box-sizing: border-box;
+    overflow: hidden;
+    border: 1px solid rgba(106, 225, 247, .14);
+    background:
+      radial-gradient(ellipse at center, rgba(41, 134, 157, .1), transparent 68%),
+      linear-gradient(90deg, rgba(91, 222, 248, .018) 1px, transparent 1px) 0 0 / 32px 100%,
+      linear-gradient(rgba(91, 222, 248, .018) 1px, transparent 1px) 0 0 / 100% 32px;
+    box-shadow: inset 0 0 90px rgba(1, 7, 10, .56), 0 0 34px rgba(11, 72, 91, .12);
+    pointer-events: auto;
+    animation: verso-focus-in 520ms cubic-bezier(.18, .86, .2, 1) both;
+  }
+  .verso-focus-viewport > canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: grab;
+  }
+  .verso-focus-viewport > canvas[data-dragging="true"] { cursor: grabbing; }
+  .verso-focus-viewport > canvas:focus-visible {
+    outline: 1px solid rgba(122, 235, 255, .66);
+    outline-offset: -8px;
+  }
+  .verso-focus-viewport::before,
+  .verso-focus-viewport::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+  }
+  .verso-focus-viewport::before {
+    inset: 7px;
+    border: 1px solid rgba(107, 229, 252, .055);
+  }
+  .verso-focus-viewport::after {
+    top: -20%;
+    bottom: -20%;
+    left: -8%;
+    width: 20%;
+    background: linear-gradient(90deg, transparent, rgba(120, 235, 255, .055), transparent);
+    transform: skewX(-12deg);
+    animation: verso-focus-scan 5.8s ease-in-out infinite;
+  }
+  .verso-focus-viewport > span {
+    position: absolute;
+    top: 14px;
+    left: 18px;
+    color: rgba(130, 226, 245, .42);
+    font-size: .48rem;
+    letter-spacing: .18em;
+    pointer-events: none;
+    text-shadow: 0 0 12px rgba(3, 10, 14, .96);
+  }
+  .verso-focus-viewport > small {
+    position: absolute;
+    z-index: 2;
+    right: 18px;
+    bottom: 13px;
+    color: rgba(142, 224, 240, .48);
+    font-size: .45rem;
+    font-weight: 400;
+    letter-spacing: .12em;
+    pointer-events: none;
+    text-shadow: 0 0 10px #02080b;
+  }
+  .verso-focus-viewport > small b {
+    color: rgba(220, 249, 255, .76);
+    font-weight: 500;
+  }
+  .verso-height-modes {
+    position: absolute;
+    z-index: 4;
+    top: 11px;
+    right: 14px;
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid rgba(104, 225, 249, .16);
+    background: rgba(1, 8, 12, .76);
+    backdrop-filter: blur(8px);
+  }
+  .verso-height-modes button {
+    border: 0;
+    padding: 6px 8px;
+    background: transparent;
+    color: rgba(135, 222, 239, .52);
+    font: .44rem/1 ui-monospace, "SFMono-Regular", Menlo, monospace;
+    letter-spacing: .12em;
+    cursor: pointer;
+  }
+  .verso-height-modes button:hover,
+  .verso-height-modes button:focus-visible {
+    color: rgba(224, 250, 255, .94);
+    outline: 1px solid rgba(116, 232, 254, .42);
+    outline-offset: -1px;
+  }
+  .verso-height-modes button[aria-pressed="true"] {
+    background: rgba(84, 211, 238, .14);
+    color: rgba(224, 250, 255, .92);
+    box-shadow: inset 0 -1px rgba(117, 232, 254, .66), 0 0 12px rgba(78, 216, 244, .12);
+  }
+  .verso-focus-viewport > i {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-color: rgba(115, 232, 254, .52);
+    border-style: solid;
+    pointer-events: none;
+  }
+  .verso-focus-viewport > i:nth-of-type(1) { top: 7px; left: 7px; border-width: 1px 0 0 1px; }
+  .verso-focus-viewport > i:nth-of-type(2) { top: 7px; right: 7px; border-width: 1px 1px 0 0; }
+  .verso-focus-viewport > i:nth-of-type(3) { right: 7px; bottom: 7px; border-width: 0 1px 1px 0; }
+  .verso-focus-viewport > i:nth-of-type(4) { bottom: 7px; left: 7px; border-width: 0 0 1px 1px; }
+  @keyframes verso-focus-in {
+    from { opacity: 0; transform: scale(.97); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes verso-focus-scan {
+    0%, 18% { transform: translateX(0) skewX(-12deg); opacity: 0; }
+    38% { opacity: 1; }
+    75%, 100% { transform: translateX(620%) skewX(-12deg); opacity: 0; }
+  }
+  .verso-hud-header {
+    top: clamp(24px, 5vh, 52px);
+    left: clamp(24px, 5vw, 70px);
+    display: grid;
+    gap: 7px;
+    pointer-events: none;
+  }
+  .verso-hud-header::before,
+  .verso-layer-readout::before {
+    content: "";
+    width: 42px;
+    height: 1px;
+    margin-bottom: 3px;
+    background: linear-gradient(90deg, #78eaff, transparent);
+    box-shadow: 0 0 12px rgba(95, 226, 255, .7);
+  }
+  .verso-hud-header span,
+  .verso-layer-readout span,
+  .verso-telemetry,
+  .verso-instruction {
+    color: rgba(131, 226, 245, .62);
+    font-size: clamp(.56rem, .82vw, .7rem);
+  }
+  .verso-hud-header strong {
+    color: rgba(221, 250, 255, .92);
+    font-size: clamp(.9rem, 1.6vw, 1.18rem);
+    font-weight: 500;
+    letter-spacing: .18em;
+    text-shadow: 0 0 18px rgba(84, 222, 248, .34);
+  }
+  .verso-layer-readout {
+    top: 50%;
+    right: clamp(22px, 4.5vw, 68px);
+    display: grid;
+    width: min(270px, 25vw);
+    gap: 7px;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+  .verso-layer-readout strong {
+    color: rgba(218, 248, 255, .94);
+    font-size: clamp(.8rem, 1.3vw, 1rem);
+    font-weight: 500;
+    text-shadow: 0 0 16px rgba(80, 221, 250, .38);
+  }
+  .verso-layer-readout em {
+    margin-bottom: 9px;
+    color: rgba(185, 91, 69, .8);
+    font-size: clamp(.57rem, .8vw, .67rem);
+    font-style: normal;
+  }
+  .verso-layer-readout small {
+    color: rgba(140, 218, 234, .54);
+    font-size: clamp(.52rem, .72vw, .62rem);
+    line-height: 1.35;
+  }
+  .verso-layer-readout .verso-layer-kind {
+    width: max-content;
+    margin-top: -2px;
+    color: rgba(185, 91, 69, .82);
+    font-size: .45rem;
+    letter-spacing: .16em;
+  }
+  .verso-layer-readout .verso-layer-evidence {
+    width: max-content;
+    margin: 1px 0 5px;
+    border: 1px solid rgba(118, 232, 255, .22);
+    padding: 3px 5px;
+    color: rgba(178, 237, 248, .7);
+    font-size: .46rem;
+    letter-spacing: .14em;
+  }
+  .verso-exploded[data-inspecting="true"] .verso-layer-readout,
+  .verso-exploded[data-inspecting="true"] .verso-instruction {
+    opacity: 0;
+    transition: opacity 240ms ease;
+  }
+  .verso-inspector {
+    top: clamp(86px, 12vh, 128px);
+    right: clamp(24px, 4.5vw, 68px);
+    bottom: clamp(94px, 12vh, 126px);
+    width: min(390px, 34vw);
+    box-sizing: border-box;
+    overflow: auto;
+    padding: 24px 28px 24px 32px;
+    border: 1px solid rgba(100, 224, 248, .22);
+    background:
+      linear-gradient(90deg, rgba(93, 225, 251, .09) 1px, transparent 1px) 0 0 / 24px 100%,
+      linear-gradient(rgba(93, 225, 251, .055) 1px, transparent 1px) 0 0 / 100% 24px,
+      rgba(3, 12, 18, .82);
+    box-shadow: 0 0 58px rgba(8, 61, 78, .25), inset 2px 0 rgba(105, 230, 255, .16);
+    backdrop-filter: blur(11px);
+    animation: verso-inspector-in 480ms cubic-bezier(.18, .86, .2, 1) both;
+  }
+  .verso-inspector::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(transparent, #77e9ff, transparent);
+    box-shadow: 0 0 18px rgba(96, 228, 255, .68);
+  }
+  @keyframes verso-inspector-in {
+    from { opacity: 0; transform: translateX(28px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .verso-inspector-index {
+    margin-bottom: 12px;
+    color: rgba(130, 226, 245, .58);
+    font-size: .57rem;
+    letter-spacing: .18em;
+  }
+  .verso-inspector-evidence {
+    width: max-content;
+    margin: -2px 0 10px;
+    border: 1px solid rgba(117, 230, 252, .28);
+    padding: 4px 7px;
+    color: rgba(184, 239, 249, .74);
+    font-size: .48rem;
+    letter-spacing: .15em;
+  }
+  .verso-inspector h2 {
+    margin: 0;
+    color: rgba(225, 250, 255, .96);
+    font-size: clamp(1rem, 1.7vw, 1.35rem);
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-shadow: 0 0 20px rgba(83, 222, 249, .4);
+  }
+  .verso-inspector-subtitle {
+    margin: 7px 0 20px;
+    color: rgba(185, 91, 69, .86);
+    font-size: .62rem;
+    letter-spacing: .16em;
+  }
+  .verso-inspector-summary {
+    margin: 0 0 20px;
+    color: rgba(190, 231, 239, .73);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: .77rem;
+    letter-spacing: .045em;
+    line-height: 1.85;
+  }
+  .verso-inspector dl {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    margin: 0 0 24px;
+    background: rgba(91, 215, 239, .18);
+  }
+  .verso-inspector dl div {
+    min-width: 0;
+    padding: 10px;
+    background: rgba(4, 15, 21, .92);
+  }
+  .verso-inspector dt {
+    color: rgba(111, 210, 230, .46);
+    font-size: .46rem;
+  }
+  .verso-inspector dd {
+    margin: 5px 0 0;
+    overflow-wrap: anywhere;
+    color: rgba(216, 247, 252, .87);
+    font-size: .57rem;
+    line-height: 1.35;
+  }
+  .verso-inspector h3 {
+    margin: 0 0 11px;
+    color: rgba(132, 226, 244, .62);
+    font-size: .56rem;
+    font-weight: 500;
+    letter-spacing: .18em;
+  }
+  .verso-inspector ol {
+    margin: 0 0 20px;
+    padding: 0;
+    list-style: none;
+    counter-reset: process;
+  }
+  .verso-inspector li {
+    position: relative;
+    padding: 7px 0 7px 34px;
+    border-top: 1px solid rgba(91, 214, 238, .11);
+    color: rgba(171, 222, 232, .68);
+    font-size: .61rem;
+    line-height: 1.45;
+    counter-increment: process;
+  }
+  .verso-inspector li::before {
+    content: "0" counter(process);
+    position: absolute;
+    left: 2px;
+    color: rgba(185, 91, 69, .8);
+  }
+  .verso-inspector pre {
+    margin: 0 0 22px;
+    overflow: auto;
+    padding: 13px;
+    border-left: 1px solid rgba(119, 232, 253, .34);
+    background: rgba(0, 5, 8, .66);
+    color: rgba(158, 229, 242, .72);
+    font: .56rem/1.75 ui-monospace, "SFMono-Regular", Menlo, monospace;
+    letter-spacing: 0;
+  }
+  .verso-inspector-release {
+    position: sticky;
+    z-index: 2;
+    top: -24px;
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 10px;
+    margin: -8px 0 24px;
+    border: 0;
+    border-bottom: 1px solid rgba(105, 229, 253, .36);
+    padding: 14px 0 11px;
+    background: linear-gradient(90deg, rgba(3, 12, 18, .98) 72%, transparent);
+    color: rgba(209, 247, 255, .86);
+    font: inherit;
+    font-size: .6rem;
+    letter-spacing: .16em;
+    cursor: pointer;
+  }
+  .verso-inspector-release span {
+    color: rgba(185, 91, 69, .92);
+    font-size: .85rem;
+    transition: transform 180ms ease;
+  }
+  .verso-inspector-release:hover,
+  .verso-inspector-release:focus-visible {
+    color: #effdff;
+    text-shadow: 0 0 12px rgba(97, 230, 255, .76);
+    outline: none;
+  }
+  .verso-inspector-release:hover span,
+  .verso-inspector-release:focus-visible span { transform: translateX(-4px); }
+  .verso-exploded[data-inspecting="true"] .verso-exploded-canvas { cursor: default !important; }
+  .verso-exploded[data-inspecting="true"] > .verso-exploded-canvas {
+    opacity: .08;
+    transition: opacity 360ms ease;
+  }
+  .verso-telemetry {
+    left: clamp(24px, 5vw, 70px);
+    bottom: clamp(76px, 10vh, 108px);
+    display: grid;
+    gap: 6px;
+    pointer-events: none;
+  }
+  .verso-telemetry span:first-child { color: rgba(185, 91, 69, .88); }
+  .verso-instruction {
+    right: clamp(24px, 4.5vw, 68px);
+    bottom: clamp(76px, 10vh, 108px);
+    max-width: min(520px, 46vw);
+    margin: 0;
+    line-height: 1.5;
+    text-align: right;
+    pointer-events: none;
+  }
+  .verso-return {
+    right: clamp(24px, 4.5vw, 68px);
+    bottom: clamp(24px, 4vh, 46px);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 0;
+    padding: 8px 0 8px 12px;
+    background: transparent;
+    color: rgba(209, 247, 255, .86);
+    font-size: clamp(.65rem, .9vw, .76rem);
+    letter-spacing: .16em;
+    cursor: pointer;
+  }
+  .verso-return i {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgba(96, 224, 250, .5);
+    border-radius: 50%;
+    box-shadow: 0 0 14px rgba(62, 202, 234, .18), inset 0 0 10px rgba(62, 202, 234, .12);
+  }
+  .verso-return i::before {
+    content: "";
+    position: absolute;
+    top: 7px;
+    left: 8px;
+    width: 9px;
+    height: 9px;
+    border-bottom: 1px solid currentColor;
+    border-left: 1px solid currentColor;
+    transform: rotate(45deg);
+  }
+  .verso-return::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 2px;
+    left: 12px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(105, 230, 255, .62), transparent);
+    transform: scaleX(.24);
+    transform-origin: right;
+    transition: transform 220ms ease;
+  }
+  .verso-return:hover::after,
+  .verso-return:focus-visible::after { transform: scaleX(1); }
+  .verso-return:hover i,
+  .verso-return:focus-visible i {
+    color: #e7fbff;
+    border-color: rgba(132, 237, 255, .9);
+    box-shadow: 0 0 24px rgba(62, 202, 234, .42), inset 0 0 14px rgba(62, 202, 234, .18);
+  }
+  .verso-return:focus-visible {
+    outline: 1px solid rgba(112, 231, 255, .72);
+    outline-offset: 7px;
+  }
+  .verso-return:disabled {
+    cursor: wait;
+    opacity: .58;
+  }
+  .verso-return:disabled i { animation: verso-recall-spin 1.2s linear infinite; }
+  @keyframes verso-recall-spin { to { transform: rotate(-360deg); } }
+  .canvas-grimoire-language {
+    position: absolute;
+    z-index: 4;
+    top: clamp(18px, 3.8svh, 34px);
+    right: clamp(24px, 4.2vw, 62px);
+    color: rgba(51, 31, 21, .58);
+    font-family: "Ischca IM Fell English SC", "Ischca Noto Serif JP", Georgia, serif;
+    font-size: clamp(.72rem, 1.2vw, .9rem);
+    letter-spacing: .12em;
+    line-height: 1;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: color 180ms ease, text-shadow 180ms ease;
+  }
+  .canvas-grimoire-language:hover,
+  .canvas-grimoire-language:focus-visible {
+    color: rgba(45, 27, 18, .92);
+    text-shadow: 0 1px rgba(255, 252, 242, .45);
+  }
+  .canvas-grimoire-language:focus-visible {
+    outline: 1px solid rgba(96, 40, 27, .72);
+    outline-offset: 6px;
+  }
   .canvas-grimoire-actions {
     position: absolute;
     inset: 0;
     z-index: 3;
     pointer-events: none;
   }
-  .canvas-grimoire-hotspot,
   .canvas-grimoire-action {
     position: absolute;
     box-sizing: border-box;
@@ -1699,7 +3834,6 @@ const STYLES = `
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
-  .canvas-grimoire-hotspot:focus-visible,
   .canvas-grimoire-action:focus-visible,
   .canvas-grimoire-surface:focus-visible {
     outline: 2px solid rgba(96, 40, 27, .86);
@@ -1721,48 +3855,159 @@ const STYLES = `
   }
   @media (max-width: 699px) {
     .canvas-grimoire-experience {
-      height: max(900px, calc(100svh - 58px));
-      min-height: 900px;
+      --grimoire-stage-height: max(780px, 100svh);
+      height: calc(var(--grimoire-stage-height) + 680svh);
+      min-height: calc(780px + 680svh);
+    }
+    .canvas-grimoire-stage { top: 0; }
+    .canvas-grimoire-language {
+      top: 20px;
+      right: 24px;
+      font-size: .7rem;
+    }
+    .verso-hud-header {
+      top: 22px;
+      left: 22px;
+    }
+    .verso-layer-readout {
+      top: auto;
+      right: auto;
+      bottom: 112px;
+      left: 22px;
+      width: min(70vw, 280px);
+      transform: none;
+    }
+    .verso-layer-readout small,
+    .verso-layer-readout em { display: none; }
+    .verso-inspector {
+      top: 51%;
+      right: 18px;
+      bottom: 82px;
+      left: 18px;
+      width: auto;
+      padding: 20px 20px 22px 24px;
+      background: rgba(3, 12, 18, .9);
+    }
+    .verso-focus-viewport {
+      top: 62px;
+      right: 14px;
+      bottom: auto;
+      left: 14px;
+      width: auto;
+      height: calc(44% - 62px);
+      min-height: 230px;
+    }
+    .verso-height-modes {
+      top: 36px;
+      right: 10px;
+    }
+    .verso-height-modes button {
+      padding: 5px 6px;
+      font-size: .4rem;
+    }
+    .verso-inspector-release {
+      top: -20px;
+      margin-top: -7px;
+    }
+    .verso-inspector dl { grid-template-columns: 1fr 1fr 1fr; }
+    .verso-exploded[data-inspecting="true"] .verso-hud-header,
+    .verso-exploded[data-inspecting="true"] .verso-telemetry { opacity: .18; }
+    .verso-telemetry {
+      top: 88px;
+      bottom: auto;
+      left: 22px;
+    }
+    .verso-telemetry span:nth-child(3),
+    .verso-telemetry span:nth-child(4) { display: none; }
+    .verso-instruction {
+      right: 22px;
+      bottom: 112px;
+      max-width: 48vw;
+      font-size: .5rem;
+    }
+    .verso-return {
+      right: 22px;
+      bottom: 30px;
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .canvas-grimoire-hotspot,
     .canvas-grimoire-action { scroll-behavior: auto; }
+    .canvas-grimoire-stage[data-verso] .canvas-grimoire-surface,
+    .canvas-grimoire-stage[data-verso] .canvas-grimoire-hint,
+    .verso-exploded { animation-duration: 1ms !important; }
   }
 `;
 
-export function CanvasGrimoireExperience({ content, locale }: { content: SiteContent; locale: Locale }) {
+type CanvasGrimoireExperienceProps = {
+  content: SiteContent;
+  locale: Locale;
+  alternateHref: string;
+  alternateLabel: string;
+};
+
+export function CanvasGrimoireExperience({
+  content,
+  locale,
+  alternateHref,
+  alternateLabel,
+}: CanvasGrimoireExperienceProps) {
   const descriptionId = useId();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const hintCanvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const textRendererRef = useRef<PhysicalInkTextRenderer | null>(null);
+  const parchmentRendererRef = useRef<PhysicalParchmentRenderer | null>(null);
   const sizeRef = useRef<CanvasSize>({ width: 0, height: 0, dpr: 1 });
   const visualRef = useRef<VisualState>({
     active: 0,
     chapterPhase: 1,
+    palimpsest: { from: 0, to: 0, progress: 0 },
     magicPhase: 0,
     awakened: false,
     points: [],
+    ritualStrokes: [],
     cast: { x: 0.5, y: 0.5, name: "VESTIGIUM", serial: 0 },
+    ritual: { stage: "idle", sigil: null, mechanismPhase: 0, guideOpacity: 0 },
   });
   const drawingRef = useRef(false);
   const lengthRef = useRef(0);
   const animationRef = useRef<number | null>(null);
+  const hintAnimationRef = useRef<number | null>(null);
+  const hintModeRef = useRef<"tracing" | "burst" | null>(null);
   const paintFrameRef = useRef<number | null>(null);
+  const versoTimersRef = useRef<number[]>([]);
   const reducedMotionRef = useRef(false);
   const [active, setActive] = useState(0);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [announcement, setAnnouncement] = useState<string>(COPY[locale].keyboard);
+  const [versoPhase, setVersoPhase] = useState<"surface" | "priming" | VersoPhase>("surface");
+  const [versoTrace, setVersoTrace] = useState<VersoTracePoint[]>([]);
+  const [versoSources, setVersoSources] = useState<{
+    albedo: HTMLCanvasElement;
+    height: HTMLCanvasElement;
+    ink: HTMLCanvasElement;
+    absorption: HTMLCanvasElement;
+    glyph: HTMLCanvasElement | null;
+  } | null>(null);
 
   const labels = useMemo(
-    () => [COPY[locale].home, content.navigation.work, content.navigation.career, content.navigation.products, content.navigation.contact],
-    [content, locale],
+    () => [COPY[locale].home, COPY[locale].work, COPY[locale].career, COPY[locale].products, COPY[locale].contact],
+    [locale],
   );
 
   const paint = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    paintScene(canvas, sizeRef.current, visualRef.current, content, locale, textRendererRef.current);
+    paintScene(
+      canvas,
+      sizeRef.current,
+      visualRef.current,
+      content,
+      locale,
+      textRendererRef.current,
+      parchmentRendererRef.current,
+    );
   }, [content, locale]);
 
   const schedulePaint = useCallback(() => {
@@ -1778,11 +4023,17 @@ export function CanvasGrimoireExperience({ content, locale }: { content: SiteCon
     let instance: PhysicalInkTextRenderer | null = null;
     if (!PhysicalInkTextRenderer.isSupported()) return;
     void PhysicalInkTextRenderer.create({
-      fontFaces: [
-        { url: "/fonts/YujiSyuku-Portfolio.woff", weight: 400, family: "manuscript" },
-        { url: "/fonts/NotoSerifJP-Portfolio.woff", weight: 400, family: "reference" },
-        { url: "/fonts/NotoSerifJP-Portfolio-Semibold.woff", weight: 600, family: "reference" },
-      ],
+      fontFaces: locale === "ja"
+        ? [
+            { url: assetUrl("fonts/YujiSyuku-Portfolio.woff"), weight: 400, family: "manuscript" },
+            { url: assetUrl("fonts/NotoSerifJP-Portfolio.woff"), weight: 400, family: "reference" },
+            { url: assetUrl("fonts/NotoSerifJP-Portfolio-Semibold.woff"), weight: 600, family: "reference" },
+          ]
+        : [
+            { url: assetUrl("fonts/IMFellEnglish-Portfolio.woff"), weight: 400, family: "manuscript" },
+            { url: assetUrl("fonts/Fondamento-Portfolio-Italic.woff"), weight: 400, italic: true, family: "manuscript" },
+            { url: assetUrl("fonts/IMFellEnglishSC-Portfolio.woff"), weight: 400, family: "reference" },
+          ],
       maxDevicePixelRatio: 2,
       onInvalidate: schedulePaint,
     }).then((renderer) => {
@@ -1799,6 +4050,28 @@ export function CanvasGrimoireExperience({ content, locale }: { content: SiteCon
       if (textRendererRef.current === instance) textRendererRef.current = null;
       instance?.dispose();
     };
+  }, [locale, schedulePaint]);
+
+  useEffect(() => {
+    let disposed = false;
+    let instance: PhysicalParchmentRenderer | null = null;
+    void PhysicalParchmentRenderer.create({
+      maxDevicePixelRatio: 2,
+      onInvalidate: schedulePaint,
+    }).then((renderer) => {
+      if (disposed) {
+        renderer?.dispose();
+        return;
+      }
+      instance = renderer;
+      parchmentRendererRef.current = renderer;
+      schedulePaint();
+    });
+    return () => {
+      disposed = true;
+      if (parchmentRendererRef.current === instance) parchmentRendererRef.current = null;
+      instance?.dispose();
+    };
   }, [schedulePaint]);
 
   const cancelAnimation = useCallback(() => {
@@ -1808,28 +4081,165 @@ export function CanvasGrimoireExperience({ content, locale }: { content: SiteCon
     }
   }, []);
 
-  const selectChapter = useCallback((index: number) => {
-    const next = (index + VIEW_IDS.length) % VIEW_IDS.length;
-    if (next === visualRef.current.active) return;
-    cancelAnimation();
-    visualRef.current.active = next;
-    visualRef.current.chapterPhase = reducedMotionRef.current ? 1 : 0;
-    setActive(next);
-    setAnnouncement(labels[next]);
+  const clearVersoTimers = useCallback(() => {
+    versoTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    versoTimersRef.current = [];
+  }, []);
+
+  const openVerso = useCallback(() => {
+    clearVersoTimers();
+    setVersoPhase("priming");
     if (reducedMotionRef.current) {
-      paint();
+      setVersoPhase("active");
       return;
     }
+    versoTimersRef.current = [
+      window.setTimeout(() => setVersoPhase("entering"), 2380),
+      window.setTimeout(() => setVersoPhase("active"), 5480),
+    ];
+  }, [clearVersoTimers]);
+
+  const returnToSurface = useCallback(() => {
+    clearVersoTimers();
+    setVersoPhase("recalling");
+    setAnnouncement(locale === "ja" ? "分解された層を羊皮紙へ再統合しています。" : "The separated layers are returning to the folio.");
+    if (reducedMotionRef.current) {
+      setVersoPhase("surface");
+      setAnnouncement(COPY[locale].keyboard);
+      return;
+    }
+    versoTimersRef.current = [
+      window.setTimeout(() => setVersoPhase("closing"), 1700),
+      window.setTimeout(() => {
+        setVersoPhase("surface");
+        setAnnouncement(COPY[locale].keyboard);
+      }, 3900),
+    ];
+  }, [clearVersoTimers, locale]);
+
+  const clearTracingHint = useCallback(() => {
+    const canvas = hintCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+  }, []);
+
+  const cancelTracingHint = useCallback(() => {
+    if (hintAnimationRef.current !== null) {
+      cancelAnimationFrame(hintAnimationRef.current);
+      hintAnimationRef.current = null;
+    }
+    hintModeRef.current = null;
+    clearTracingHint();
+  }, [clearTracingHint]);
+
+  const playRitualBurst = useCallback((sigil: Octagram, kind: "summon" | "unseal") => {
+    cancelTracingHint();
+    if (reducedMotionRef.current) return;
+    const canvas = hintCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    const serial = sigil.serial;
+    const duration = kind === "unseal" ? 1850 : 1120;
     const started = performance.now();
+    let lastPaint = 0;
+    hintModeRef.current = "burst";
     const animate = (now: number) => {
-      const elapsed = clamp(0, (now - started) / 620, 1);
-      visualRef.current.chapterPhase = 1 - Math.pow(1 - elapsed, 3);
-      paint();
-      if (elapsed < 1) animationRef.current = requestAnimationFrame(animate);
-      else animationRef.current = null;
+      const currentSigil = visualRef.current.ritual.sigil;
+      if (!currentSigil || currentSigil.serial !== serial) {
+        hintAnimationRef.current = null;
+        hintModeRef.current = null;
+        clearTracingHint();
+        return;
+      }
+      if (now - lastPaint >= 20) {
+        lastPaint = now;
+        const phase = clamp(0, (now - started) / duration, 1);
+        const size = sizeRef.current;
+        context.setTransform(1, 0, 0, 1, 0, 0);
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
+        const mainCanvas = canvasRef.current;
+        const material = mainCanvas ? inkSurfaceLayer(mainCanvas, size) : null;
+        drawRitualCompletionBurst(context, size.width, size.height, sigil, phase, kind, material);
+        if (phase >= 1) {
+          hintAnimationRef.current = null;
+          hintModeRef.current = null;
+          clearTracingHint();
+          return;
+        }
+      }
+      hintAnimationRef.current = requestAnimationFrame(animate);
     };
-    animationRef.current = requestAnimationFrame(animate);
-  }, [cancelAnimation, labels, paint]);
+    hintAnimationRef.current = requestAnimationFrame(animate);
+  }, [cancelTracingHint, clearTracingHint]);
+
+  const startTracingHint = useCallback(() => {
+    cancelTracingHint();
+    const canvas = hintCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    const sigil = visualRef.current.ritual.sigil;
+    if (!canvas || !context || !sigil || visualRef.current.ritual.stage !== "summoned") return;
+    const serial = sigil.serial;
+    const started = performance.now();
+    let lastPaint = 0;
+    hintModeRef.current = "tracing";
+
+    const render = (phase: number) => {
+      const size = sizeRef.current;
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
+      const mainCanvas = canvasRef.current;
+      const material = mainCanvas ? inkSurfaceLayer(mainCanvas, size) : null;
+      drawTracingHint(context, size.width, size.height, sigil, phase, material);
+    };
+
+    if (reducedMotionRef.current) {
+      render(0.07);
+      return;
+    }
+
+    const animate = (now: number) => {
+      const ritual = visualRef.current.ritual;
+      if (ritual.stage !== "summoned" || ritual.sigil?.serial !== serial) {
+        hintAnimationRef.current = null;
+        hintModeRef.current = null;
+        clearTracingHint();
+        return;
+      }
+      // Leave a short silence between circuits so this reads as an invitation,
+      // rather than a permanent loading spinner. The overlay is intentionally
+      // capped around 30fps and never re-renders the parchment or its text.
+      if (now - lastPaint >= 32) {
+        lastPaint = now;
+        const cycle = (now - started) % 13500;
+        if (cycle >= 750 && cycle <= 12750) render((cycle - 750) / 12000);
+        else clearTracingHint();
+      }
+      hintAnimationRef.current = requestAnimationFrame(animate);
+    };
+    hintAnimationRef.current = requestAnimationFrame(animate);
+  }, [cancelTracingHint, clearTracingHint]);
+
+  const selectChapter = useCallback((index: number) => {
+    const next = (index + VIEW_IDS.length) % VIEW_IDS.length;
+    cancelAnimation();
+    cancelTracingHint();
+    const wrapper = wrapperRef.current;
+    const stage = stageRef.current;
+    if (!wrapper || !stage) return;
+    const rect = wrapper.getBoundingClientRect();
+    const stickyTop = Number.parseFloat(getComputedStyle(stage).top) || 0;
+    const travel = Math.max(1, wrapper.offsetHeight - stage.offsetHeight);
+    const sectionStart = window.scrollY + rect.top - stickyTop;
+    window.scrollTo({
+      top: sectionStart + travel * (next / (VIEW_IDS.length - 1)),
+      behavior: reducedMotionRef.current ? "auto" : "smooth",
+    });
+    setAnnouncement(labels[next]);
+  }, [cancelAnimation, cancelTracingHint, labels]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -1841,8 +4251,82 @@ export function CanvasGrimoireExperience({ content, locale }: { content: SiteCon
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
+    const stage = stageRef.current;
+    if (!wrapper || !stage) return;
+    let frame: number | null = null;
+    let needsMeasure = true;
+    let sectionStart = 0;
+    let travel = 1;
+    let lastPaintKey = "";
+    const update = () => {
+      frame = null;
+      if (needsMeasure) {
+        const rect = wrapper.getBoundingClientRect();
+        const stickyTop = Number.parseFloat(getComputedStyle(stage).top) || 0;
+        sectionStart = window.scrollY + rect.top - stickyTop;
+        travel = Math.max(1, wrapper.offsetHeight - stage.offsetHeight);
+        needsMeasure = false;
+      }
+      const scrollProgress = clamp(0, (window.scrollY - sectionStart) / travel, 1);
+      const position = scrollProgress * (VIEW_IDS.length - 1);
+      const base = Math.min(VIEW_IDS.length - 1, Math.floor(position));
+      const local = position - base;
+      const rawTransitionProgress = base >= VIEW_IDS.length - 1 || local < 0.14
+        ? 0
+        : smoothstep(0.14, 0.98, local);
+      // The sticky parchment does not move with every scroll pixel. Quantizing
+      // only its internal ink phase avoids redundant full-surface GPU uploads
+      // while retaining more steps than the eye can distinguish in this slow
+      // transition.
+      const transitionProgress = Math.round(rawTransitionProgress * 120) / 120;
+      const to = transitionProgress > 0 ? Math.min(VIEW_IDS.length - 1, base + 1) : base;
+      const nextActive = reducedMotionRef.current
+        ? Math.min(VIEW_IDS.length - 1, Math.round(position))
+        : transitionProgress >= 0.74 ? to : base;
+      const state = visualRef.current;
+      state.palimpsest = reducedMotionRef.current
+        ? { from: nextActive, to: nextActive, progress: 0 }
+        : { from: base, to, progress: transitionProgress };
+      state.chapterPhase = 1;
+      if (state.active !== nextActive) {
+        state.active = nextActive;
+        state.points = [];
+        state.ritualStrokes = [];
+        state.magicPhase = 0;
+        state.awakened = false;
+        state.ritual = { stage: "idle", sigil: null, mechanismPhase: 0, guideOpacity: 0 };
+        setActive(nextActive);
+        setAnnouncement(labels[nextActive]);
+      }
+      const paintKey = `${base}:${to}:${transitionProgress}:${nextActive}`;
+      if (paintKey !== lastPaintKey) {
+        lastPaintKey = paintKey;
+        paint();
+      }
+    };
+    const schedule = () => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(update);
+    };
+    window.addEventListener("scroll", schedule, { passive: true });
+    const scheduleMeasure = () => {
+      needsMeasure = true;
+      schedule();
+    };
+    window.addEventListener("resize", scheduleMeasure);
+    update();
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", scheduleMeasure);
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, [labels, paint]);
+
+  useEffect(() => {
+    const wrapper = stageRef.current;
     const canvas = canvasRef.current;
-    if (!wrapper || !canvas) return;
+    const hintCanvas = hintCanvasRef.current;
+    if (!wrapper || !canvas || !hintCanvas) return;
     const resize = () => {
       const rect = wrapper.getBoundingClientRect();
       const width = Math.max(1, rect.width);
@@ -1853,7 +4337,7 @@ export function CanvasGrimoireExperience({ content, locale }: { content: SiteCon
         previousSize.width > 0
         && previousSize.height > 0
         && (previousSize.width !== width || previousSize.height !== height)
-        && visualRef.current.points.length > 0
+        && (visualRef.current.points.length > 0 || visualRef.current.ritualStrokes.length > 0)
       ) {
         const scaleX = width / previousSize.width;
         const scaleY = height / previousSize.height;
@@ -1864,6 +4348,12 @@ export function CanvasGrimoireExperience({ content, locale }: { content: SiteCon
           y: point.y * scaleY,
           width: clamp(0.5, point.width * widthScale, 3.1),
         }));
+        visualRef.current.ritualStrokes = visualRef.current.ritualStrokes.map((stroke) => stroke.map((point) => ({
+          ...point,
+          x: point.x * scaleX,
+          y: point.y * scaleY,
+          width: clamp(0.5, point.width * widthScale, 3.1),
+        })));
       }
       sizeRef.current = { width, height, dpr };
       const physicalWidth = Math.round(width * dpr);
@@ -1871,6 +4361,10 @@ export function CanvasGrimoireExperience({ content, locale }: { content: SiteCon
       if (canvas.width !== physicalWidth || canvas.height !== physicalHeight) {
         canvas.width = physicalWidth;
         canvas.height = physicalHeight;
+      }
+      if (hintCanvas.width !== physicalWidth || hintCanvas.height !== physicalHeight) {
+        hintCanvas.width = physicalWidth;
+        hintCanvas.height = physicalHeight;
       }
       setSize((current) => current.width === width && current.height === height ? current : { width, height });
       paint();
@@ -1900,8 +4394,24 @@ export function CanvasGrimoireExperience({ content, locale }: { content: SiteCon
 
   useEffect(() => () => {
     cancelAnimation();
+    cancelTracingHint();
+    clearVersoTimers();
     if (paintFrameRef.current !== null) cancelAnimationFrame(paintFrameRef.current);
-  }, [cancelAnimation]);
+  }, [cancelAnimation, cancelTracingHint, clearVersoTimers]);
+
+  useEffect(() => {
+    if (versoPhase === "surface") return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && versoPhase === "active") returnToSurface();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [returnToSurface, versoPhase]);
 
   const pointFromEvent = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -1909,15 +4419,31 @@ export function CanvasGrimoireExperience({ content, locale }: { content: SiteCon
   };
 
   const beginInk = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (versoPhase !== "surface") return;
     if (event.button !== 0 || !event.isPrimary) return;
+    const tracingRitual = visualRef.current.ritual.stage === "summoned";
     cancelAnimation();
+    if (!tracingRitual) cancelTracingHint();
     const point = pointFromEvent(event);
     event.currentTarget.setPointerCapture(event.pointerId);
     drawingRef.current = true;
     lengthRef.current = 0;
     visualRef.current.points = [{ ...point, width: 1.12, time: event.timeStamp }];
-    visualRef.current.awakened = false;
-    visualRef.current.magicPhase = 0;
+    if (visualRef.current.ritual.stage === "unsealed") {
+      visualRef.current.ritual = { stage: "idle", sigil: null, mechanismPhase: 0, guideOpacity: 0 };
+      visualRef.current.ritualStrokes = [];
+      visualRef.current.awakened = false;
+      visualRef.current.magicPhase = 0;
+    } else if (visualRef.current.ritual.stage === "idle") {
+      visualRef.current.ritualStrokes = [];
+      visualRef.current.awakened = false;
+      visualRef.current.magicPhase = 0;
+    } else {
+      // Beginning the tracing interaction dismisses any remainder of the
+      // introductory apparition immediately; the user's ink now owns the seal.
+      visualRef.current.ritual.guideOpacity = 0;
+      if (hintModeRef.current !== "tracing") startTracingHint();
+    }
     paint();
   };
 
@@ -1947,23 +4473,108 @@ export function CanvasGrimoireExperience({ content, locale }: { content: SiteCon
     drawingRef.current = false;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     const points = visualRef.current.points;
+    const size = sizeRef.current;
+    const ritual = visualRef.current.ritual;
+    if (ritual.stage === "summoned" && ritual.sigil) {
+      if (lengthRef.current >= 8 && points.length >= 2) {
+        visualRef.current.ritualStrokes = [...visualRef.current.ritualStrokes, points];
+      }
+      visualRef.current.points = [];
+      if (!gesturesTraceOctagram(visualRef.current.ritualStrokes, ritual.sigil, size.width, size.height)) {
+        setAnnouncement(COPY[locale].circleReady);
+        paint();
+        return;
+      }
+      cancelTracingHint();
+      const completedStrokes = visualRef.current.ritualStrokes;
+      setVersoTrace(completedStrokes.flatMap((stroke) => stroke.map((point) => ({
+        x: point.x / Math.max(1, size.width),
+        y: point.y / Math.max(1, size.height),
+      }))));
+      const sourceCanvas = canvasRef.current;
+      if (sourceCanvas) {
+        const sources = inkSurfaceLayer(sourceCanvas, size);
+        setVersoSources({
+          albedo: sources.albedo,
+          height: sources.surface,
+          ink: sources.canvas,
+          absorption: sources.absorption,
+          glyph: textRendererRef.current?.available ? sources.glyph : null,
+        });
+      }
+      visualRef.current.points = [];
+      visualRef.current.ritualStrokes = [];
+      visualRef.current.magicPhase = 1;
+      visualRef.current.awakened = true;
+      visualRef.current.ritual = { ...ritual, stage: "unsealed", mechanismPhase: 0, guideOpacity: 1 };
+      setAnnouncement(COPY[locale].mechanismOpen);
+      playRitualBurst(ritual.sigil, "unseal");
+      openVerso();
+      if (reducedMotionRef.current) {
+        visualRef.current.ritual.mechanismPhase = 1;
+        paint();
+        return;
+      }
+      const mechanismStarted = performance.now();
+      const moveMechanism = (now: number) => {
+        const elapsed = clamp(0, (now - mechanismStarted) / 2200, 1);
+        visualRef.current.ritual.mechanismPhase = 1 - Math.pow(1 - elapsed, 3);
+        paint();
+        if (elapsed < 1) animationRef.current = requestAnimationFrame(moveMechanism);
+        else animationRef.current = null;
+      };
+      animationRef.current = requestAnimationFrame(moveMechanism);
+      return;
+    }
+
     if (lengthRef.current < 72 || points.length < 5) {
       paint();
       return;
     }
+
     const centroid = points.reduce((sum, point) => ({ x: sum.x + point.x, y: sum.y + point.y }), { x: 0, y: 0 });
+    const serial = visualRef.current.cast.serial + 1;
+    const circle = circleFromGesture(points, size.width, size.height, serial);
     const cast = {
-      x: centroid.x / points.length / Math.max(1, sizeRef.current.width),
-      y: centroid.y / points.length / Math.max(1, sizeRef.current.height),
-      name: gestureName(points),
-      serial: visualRef.current.cast.serial + 1,
+      x: circle?.x ?? centroid.x / points.length / Math.max(1, size.width),
+      y: circle?.y ?? centroid.y / points.length / Math.max(1, size.height),
+      name: circle ? "ORBIS" : gestureName(points),
+      serial,
     };
     visualRef.current.cast = cast;
     visualRef.current.awakened = true;
-    setAnnouncement(`${COPY[locale].awake}: ${cast.name}`);
+    visualRef.current.ritual = circle
+      ? { stage: "summoned", sigil: circle, mechanismPhase: 0, guideOpacity: 1 }
+      : { stage: "idle", sigil: null, mechanismPhase: 0, guideOpacity: 0 };
+    visualRef.current.ritualStrokes = [];
+    setAnnouncement(circle ? COPY[locale].circleReady : `${COPY[locale].awake}: ${cast.name}`);
+    if (circle) playRitualBurst(circle, "summon");
+    const fadeGuideThenTrace = () => {
+      if (!circle) return;
+      if (reducedMotionRef.current) {
+        visualRef.current.ritual.guideOpacity = 0;
+        paint();
+        startTracingHint();
+        return;
+      }
+      const fadeStarted = performance.now();
+      const fadeGuide = (now: number) => {
+        const elapsed = clamp(0, (now - fadeStarted) / 1180, 1);
+        visualRef.current.ritual.guideOpacity = 1 - smoothstep(0.18, 1, elapsed);
+        paint();
+        if (elapsed < 1) animationRef.current = requestAnimationFrame(fadeGuide);
+        else {
+          animationRef.current = null;
+          visualRef.current.ritual.guideOpacity = 0;
+          startTracingHint();
+        }
+      };
+      animationRef.current = requestAnimationFrame(fadeGuide);
+    };
     if (reducedMotionRef.current) {
       visualRef.current.magicPhase = 1;
       paint();
+      fadeGuideThenTrace();
       return;
     }
     const started = performance.now();
@@ -1972,7 +4583,10 @@ export function CanvasGrimoireExperience({ content, locale }: { content: SiteCon
       visualRef.current.magicPhase = 1 - Math.pow(1 - elapsed, 3);
       paint();
       if (elapsed < 1) animationRef.current = requestAnimationFrame(animate);
-      else animationRef.current = null;
+      else {
+        animationRef.current = null;
+        fadeGuideThenTrace();
+      }
     };
     animationRef.current = requestAnimationFrame(animate);
   };
@@ -1999,7 +4613,6 @@ export function CanvasGrimoireExperience({ content, locale }: { content: SiteCon
     }
   };
 
-  const positions = navPositions(size.width || 1000, size.height || 760);
   const links = actionSpots(active, size.width || 1000);
 
   return (
@@ -2010,67 +4623,74 @@ export function CanvasGrimoireExperience({ content, locale }: { content: SiteCon
       onKeyDown={handleKeys}
     >
       <style>{STYLES}</style>
-      <canvas
-        ref={canvasRef}
-        className="canvas-grimoire-surface"
-        role="img"
-        aria-label={`${labels[active]}. ${COPY[locale].draw}`}
-        aria-describedby={descriptionId}
-        tabIndex={0}
-        onPointerDown={beginInk}
-        onPointerMove={moveInk}
-        onPointerUp={finishInk}
-        onPointerCancel={finishInk}
-      />
+      <div
+        ref={stageRef}
+        className="canvas-grimoire-stage"
+        data-verso={versoPhase === "surface" || versoPhase === "priming" ? undefined : versoPhase}
+      >
+        <canvas
+          ref={canvasRef}
+          className="canvas-grimoire-surface"
+          role="img"
+          aria-label={`${labels[active]}. ${COPY[locale].draw}`}
+          aria-describedby={descriptionId}
+          aria-hidden={versoPhase !== "surface" && versoPhase !== "priming"}
+          tabIndex={versoPhase === "surface" ? 0 : -1}
+          onPointerDown={beginInk}
+          onPointerMove={moveInk}
+          onPointerUp={finishInk}
+          onPointerCancel={finishInk}
+        />
+        <canvas ref={hintCanvasRef} className="canvas-grimoire-hint" aria-hidden="true" />
+        {versoPhase === "surface" && (
+          <a
+            className="canvas-grimoire-language"
+            href={alternateHref}
+            lang={locale === "ja" ? "en" : "ja"}
+            hrefLang={locale === "ja" ? "en" : "ja"}
+          >
+            {alternateLabel}
+          </a>
+        )}
 
-      <nav className="canvas-grimoire-nav" aria-label={locale === "ja" ? "章を選ぶ" : "Choose a chapter"}>
-        {positions.map((position, index) => {
-          const diameter = size.width < 700 ? 52 : 62;
-          const style = {
-            left: position.x - diameter / 2,
-            top: position.y - diameter / 2,
-            width: diameter,
-            height: diameter,
-            transform: `rotate(${position.angle}rad)`,
-          } satisfies CSSProperties;
-          return (
-            <button
-              type="button"
-              className="canvas-grimoire-hotspot"
-              style={style}
-              aria-current={active === index ? "page" : undefined}
-              aria-label={`${ROMAN[index]}. ${labels[index]}`}
-              onClick={() => selectChapter(index)}
-              key={VIEW_IDS[index]}
-            >
-              <span className="canvas-grimoire-sr">{labels[index]}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      {links.length > 0 && (
-        <nav className="canvas-grimoire-actions" aria-label={active === 3 ? content.navigation.products : content.navigation.contact}>
-          {links.map((link) => (
-            <a
-              className="canvas-grimoire-action"
-              href={link.href}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={link.label}
-              style={{
-                left: `${link.x * 100}%`,
-                top: `${link.y * 100}%`,
-                width: `${link.width * 100}%`,
-                height: `${link.height * 100}%`,
-              }}
-              key={link.href}
-            >
-              <span className="canvas-grimoire-sr">{link.label}</span>
-            </a>
-          ))}
-        </nav>
-      )}
+        {versoPhase === "surface" && links.length > 0 && (
+          <nav className="canvas-grimoire-actions" aria-label={active === 3 ? content.navigation.products : content.navigation.contact}>
+            {links.map((link) => (
+              <a
+                className="canvas-grimoire-action"
+                href={link.href}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={link.label}
+                style={{
+                  left: `${link.x * 100}%`,
+                  top: `${link.y * 100}%`,
+                  width: `${link.width * 100}%`,
+                  height: `${link.height * 100}%`,
+                }}
+                key={link.href}
+              >
+                <span className="canvas-grimoire-sr">{link.label}</span>
+              </a>
+            ))}
+          </nav>
+        )}
+        {versoPhase !== "surface" && (
+          <VersoExplodedView
+            phase={versoPhase}
+            locale={locale}
+            activeChapter={active}
+            surfaceCanvas={canvasRef.current}
+            albedoCanvas={versoSources?.albedo ?? null}
+            heightCanvas={versoSources?.height ?? null}
+            inkCanvas={versoSources?.ink ?? null}
+            absorptionCanvas={versoSources?.absorption ?? null}
+            glyphCanvas={versoSources?.glyph ?? null}
+            trace={versoTrace}
+            onReturn={returnToSurface}
+          />
+        )}
+      </div>
 
       <div id={descriptionId} className="canvas-grimoire-sr">
         <p>{COPY[locale].keyboard}</p>

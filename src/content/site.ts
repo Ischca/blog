@@ -71,31 +71,10 @@ export type SiteContent = {
     website: string;
     details: string;
     close: string;
-    designLab: string;
-    chooseDirection: string;
-    activeRole: string;
-    selectedSystem: string;
-    investigation: string;
-    selectSignal: string;
-    evidence: string;
-    layer: string;
-    year: string;
   };
-  modes: Array<{
-    id: "lattice" | "editorial" | "terminal" | "desktop" | "story" | "flux" | "grimoire";
-    name: string;
-    description: string;
-  }>;
   work: WorkItem[];
   career: CareerItem[];
   products: ProductItem[];
-  incidentScenarios: Array<{
-    id: string;
-    label: string;
-    symptom: string;
-    result: string;
-    steps: Array<{ layer: string; evidence: string }>;
-  }>;
 };
 
 const sharedProducts = {
@@ -157,25 +136,7 @@ export const siteContent: Record<Locale, SiteContent> = {
       website: "紹介ページ",
       details: "詳細を見る",
       close: "閉じる",
-      designLab: "Portfolio Design Lab",
-      chooseDirection: "表現を切り替える",
-      activeRole: "この時期の経歴",
-      selectedSystem: "選択中のシステム",
-      investigation: "調査経路",
-      selectSignal: "症状を選択",
-      evidence: "確認する証拠",
-      layer: "レイヤー",
-      year: "年",
     },
-    modes: [
-      { id: "lattice", name: "Lattice Explorer", description: "情報ノードを辿り、経歴全体を一枚の地図として探索する。" },
-      { id: "editorial", name: "Kinetic Editorial", description: "巨大な文字と横方向のページ遷移で読むデジタル誌面。" },
-      { id: "terminal", name: "Command Portfolio", description: "コマンド入力とショートカットで情報へ到達する端末。" },
-      { id: "desktop", name: "Portfolio OS", description: "ウインドウを開き、移動し、並べ替えられるデスクトップ。" },
-      { id: "story", name: "Scroll Cinema", description: "スクロールを時間軸として場面が変化する映像的な構成。" },
-      { id: "flux", name: "Flux Field", description: "ポインターに反応する生成フィールドから情報を呼び出す。" },
-      { id: "grimoire", name: "Living Parchment", description: "一枚の古い羊皮紙へ線を記すと、不可視のインクと魔法仕掛けが目を覚ます。" },
-    ],
     work: [
       {
         title: "Backend / API 改善",
@@ -293,44 +254,6 @@ export const siteContent: Record<Locale, SiteContent> = {
         stack: "Rust / Tauri / React",
       },
     ],
-    incidentScenarios: [
-      {
-        id: "latency",
-        label: "API latency",
-        symptom: "一覧画面だけが、データ量に比例して遅くなる",
-        result: "GraphQL resolverの呼び出し構造を特定し、N+1を解消する。",
-        steps: [
-          { layer: "Browser", evidence: "同じ操作のNetwork timingとリクエスト件数" },
-          { layer: "API", evidence: "resolverごとの実行時間と呼び出し回数" },
-          { layer: "Database", evidence: "同形SQLの反復と実行計画" },
-          { layer: "Fix", evidence: "batch loading前後の計測と回帰テスト" },
-        ],
-      },
-      {
-        id: "visibility",
-        label: "Data visibility",
-        symptom: "特定条件で、本来見えないデータが候補に混ざる",
-        result: "認可とデータ境界をAPIからDBまで揃え、回帰テストで固定する。",
-        steps: [
-          { layer: "UI", evidence: "表示条件と操作ユーザーの権限" },
-          { layer: "Authorization", evidence: "policyとresolverの適用位置" },
-          { layer: "Query", evidence: "tenant・owner条件がSQLに残っているか" },
-          { layer: "Fix", evidence: "境界条件を含む認可テスト" },
-        ],
-      },
-      {
-        id: "integrity",
-        label: "Data integrity",
-        symptom: "アップロード後、一部レコードだけ不完全な状態で残る",
-        result: "検証・トランザクション・再実行境界を整理し、不完全更新を防ぐ。",
-        steps: [
-          { layer: "Input", evidence: "ファイル制約とバリデーション順序" },
-          { layer: "Application", evidence: "途中失敗時の例外と再試行経路" },
-          { layer: "Database", evidence: "transaction境界と制約" },
-          { layer: "Fix", evidence: "失敗注入テストと再実行結果" },
-        ],
-      },
-    ],
   },
   en: {
     navigation: {
@@ -377,25 +300,7 @@ export const siteContent: Record<Locale, SiteContent> = {
       website: "Website",
       details: "View details",
       close: "Close",
-      designLab: "Portfolio Design Lab",
-      chooseDirection: "Switch expression",
-      activeRole: "Career at this point",
-      selectedSystem: "Selected system",
-      investigation: "Investigation path",
-      selectSignal: "Select a symptom",
-      evidence: "Evidence to inspect",
-      layer: "Layer",
-      year: "Year",
     },
-    modes: [
-      { id: "lattice", name: "Lattice Explorer", description: "Traverse information nodes and explore the full career as one map." },
-      { id: "editorial", name: "Kinetic Editorial", description: "A digital publication navigated through oversized type and horizontal pages." },
-      { id: "terminal", name: "Command Portfolio", description: "Reach every part of the portfolio through commands and shortcuts." },
-      { id: "desktop", name: "Portfolio OS", description: "Open, move, and arrange the portfolio as desktop windows." },
-      { id: "story", name: "Scroll Cinema", description: "A cinematic sequence whose scenes change along a scroll-driven timeline." },
-      { id: "flux", name: "Flux Field", description: "Call up information from a generative field that responds to the pointer." },
-      { id: "grimoire", name: "Living Parchment", description: "Inscribe a line upon a single weathered parchment to awaken its invisible ink and arcane machinery." },
-    ],
     work: [
       {
         title: "Backend / API improvements",
@@ -511,44 +416,6 @@ export const siteContent: Record<Locale, SiteContent> = {
           "A local-first Git diff application that suppresses noise so reviewers can focus on meaningful changes.",
         purpose: "A desktop UI that supports clearer diff review and decisions",
         stack: "Rust / Tauri / React",
-      },
-    ],
-    incidentScenarios: [
-      {
-        id: "latency",
-        label: "API latency",
-        symptom: "One list view slows down in proportion to its data volume",
-        result: "Identify repeated GraphQL resolver calls and remove the N+1 behavior.",
-        steps: [
-          { layer: "Browser", evidence: "Network timing and request count for the same interaction" },
-          { layer: "API", evidence: "Execution time and call count per resolver" },
-          { layer: "Database", evidence: "Repeated SQL shapes and execution plans" },
-          { layer: "Fix", evidence: "Before/after measurements and regression tests" },
-        ],
-      },
-      {
-        id: "visibility",
-        label: "Data visibility",
-        symptom: "A candidate list includes data that should be outside the user's scope",
-        result: "Align authorization and data boundaries from the API to the database and lock them with tests.",
-        steps: [
-          { layer: "UI", evidence: "Display conditions and the acting user's permissions" },
-          { layer: "Authorization", evidence: "Where policies and resolver guards are applied" },
-          { layer: "Query", evidence: "Whether tenant and owner conditions survive into SQL" },
-          { layer: "Fix", evidence: "Authorization tests covering boundary cases" },
-        ],
-      },
-      {
-        id: "integrity",
-        label: "Data integrity",
-        symptom: "An upload leaves only some records in an incomplete state",
-        result: "Clarify validation, transaction, and retry boundaries to prevent partial updates.",
-        steps: [
-          { layer: "Input", evidence: "File constraints and validation order" },
-          { layer: "Application", evidence: "Exceptions and retry paths after partial failure" },
-          { layer: "Database", evidence: "Transaction boundaries and constraints" },
-          { layer: "Fix", evidence: "Failure-injection tests and retry results" },
-        ],
       },
     ],
   },

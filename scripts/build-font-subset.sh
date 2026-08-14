@@ -8,6 +8,10 @@ OUTPUT_DIR="$PROJECT_ROOT/public/fonts"
 OUTPUT_MANUSCRIPT_FONT="$OUTPUT_DIR/YujiSyuku-Portfolio.woff"
 OUTPUT_NOTO_REGULAR_FONT="$OUTPUT_DIR/NotoSerifJP-Portfolio.woff"
 OUTPUT_NOTO_SEMIBOLD_FONT="$OUTPUT_DIR/NotoSerifJP-Portfolio-Semibold.woff"
+OUTPUT_FELL_REGULAR_FONT="$OUTPUT_DIR/IMFellEnglish-Portfolio.woff"
+OUTPUT_FELL_ITALIC_FONT="$OUTPUT_DIR/IMFellEnglish-Portfolio-Italic.woff"
+OUTPUT_FELL_SMALL_CAPS_FONT="$OUTPUT_DIR/IMFellEnglishSC-Portfolio.woff"
+OUTPUT_FONDAMENTO_ITALIC_FONT="$OUTPUT_DIR/Fondamento-Portfolio-Italic.woff"
 
 # Pin the upstream revision so rebuilding the portfolio cannot silently change
 # the shipped glyph outlines.
@@ -20,6 +24,18 @@ YUJI_FONT_URL="https://raw.githubusercontent.com/google/fonts/$GOOGLE_FONTS_REVI
 YUJI_FONT_SHA256="82728ebafc8c97391e2dab633414a806f344b8e4e2227d307179f07b548fca61"
 YUJI_LICENSE_URL="https://raw.githubusercontent.com/google/fonts/$GOOGLE_FONTS_REVISION/ofl/yujisyuku/OFL.txt"
 YUJI_LICENSE_SHA256="ef7c85c72ae94381c8bc4832ae4e6fbabdeafa2bb8a31313cd75dce95a690256"
+FELL_REGULAR_URL="https://raw.githubusercontent.com/google/fonts/$GOOGLE_FONTS_REVISION/ofl/imfellenglish/IMFeENrm28P.ttf"
+FELL_REGULAR_SHA256="fe9705bbde51af802719246d4608d08d37bde956ab99d9a590da996a5221a24c"
+FELL_ITALIC_URL="https://raw.githubusercontent.com/google/fonts/$GOOGLE_FONTS_REVISION/ofl/imfellenglish/IMFeENit28P.ttf"
+FELL_ITALIC_SHA256="47cd75dce54b1f2e0831359d22d5e688f519d68ae45706b664fd310fd0e3ccf7"
+FELL_SMALL_CAPS_URL="https://raw.githubusercontent.com/google/fonts/$GOOGLE_FONTS_REVISION/ofl/imfellenglishsc/IMFeENsc28P.ttf"
+FELL_SMALL_CAPS_SHA256="102324fb5434bb5da7963533426b0ad44c85bbc9e7755067535c9d11464a176b"
+FELL_LICENSE_URL="https://raw.githubusercontent.com/google/fonts/$GOOGLE_FONTS_REVISION/ofl/imfellenglish/OFL.txt"
+FELL_LICENSE_SHA256="2a3ca501fc4d5efcad9798531e3e06962b1e20c60e464f6cbd6c17630112c773"
+FONDAMENTO_ITALIC_URL="https://raw.githubusercontent.com/google/fonts/$GOOGLE_FONTS_REVISION/ofl/fondamento/Fondamento-Italic.ttf"
+FONDAMENTO_ITALIC_SHA256="8303c76ccfaf81a065c3653a1d559f76e8223a3200a79451d5dedd33cebbef9e"
+FONDAMENTO_LICENSE_URL="https://raw.githubusercontent.com/google/fonts/$GOOGLE_FONTS_REVISION/ofl/fondamento/OFL.txt"
+FONDAMENTO_LICENSE_SHA256="382232d1add5623ba5b06394afa071f4eeecccb6d2b2bd02cfecff4a8a45065a"
 
 FONTTOOLS_PY="${FONTTOOLS_PY:-python3}"
 
@@ -38,17 +54,33 @@ SOURCE_NOTO_FONT="$TMP_DIR/NotoSerifJP-wght.ttf"
 SOURCE_NOTO_LICENSE="$TMP_DIR/OFL-NotoSerifJP.txt"
 SOURCE_YUJI_FONT="$TMP_DIR/YujiSyuku-Regular.ttf"
 SOURCE_YUJI_LICENSE="$TMP_DIR/OFL-YujiSyuku.txt"
+SOURCE_FELL_REGULAR_FONT="$TMP_DIR/IMFellEnglish-Regular.ttf"
+SOURCE_FELL_ITALIC_FONT="$TMP_DIR/IMFellEnglish-Italic.ttf"
+SOURCE_FELL_SMALL_CAPS_FONT="$TMP_DIR/IMFellEnglishSC-Regular.ttf"
+SOURCE_FELL_LICENSE="$TMP_DIR/OFL-IMFellEnglish.txt"
+SOURCE_FONDAMENTO_ITALIC_FONT="$TMP_DIR/Fondamento-Italic.ttf"
+SOURCE_FONDAMENTO_LICENSE="$TMP_DIR/OFL-Fondamento.txt"
 STATIC_NOTO_REGULAR_FONT="$TMP_DIR/NotoSerifJP-400.ttf"
 STATIC_NOTO_SEMIBOLD_FONT="$TMP_DIR/NotoSerifJP-600.ttf"
 CHARACTERS_FILE="$TMP_DIR/characters.txt"
 SUBSET_MANUSCRIPT_FONT="$TMP_DIR/YujiSyuku-Portfolio.woff"
 SUBSET_NOTO_REGULAR_FONT="$TMP_DIR/NotoSerifJP-Portfolio.woff"
 SUBSET_NOTO_SEMIBOLD_FONT="$TMP_DIR/NotoSerifJP-Portfolio-Semibold.woff"
+SUBSET_FELL_REGULAR_FONT="$TMP_DIR/IMFellEnglish-Portfolio.woff"
+SUBSET_FELL_ITALIC_FONT="$TMP_DIR/IMFellEnglish-Portfolio-Italic.woff"
+SUBSET_FELL_SMALL_CAPS_FONT="$TMP_DIR/IMFellEnglishSC-Portfolio.woff"
+SUBSET_FONDAMENTO_ITALIC_FONT="$TMP_DIR/Fondamento-Portfolio-Italic.woff"
 
 curl -L --fail --silent --show-error "$NOTO_FONT_URL" -o "$SOURCE_NOTO_FONT"
 curl -L --fail --silent --show-error "$NOTO_LICENSE_URL" -o "$SOURCE_NOTO_LICENSE"
 curl -L --fail --silent --show-error "$YUJI_FONT_URL" -o "$SOURCE_YUJI_FONT"
 curl -L --fail --silent --show-error "$YUJI_LICENSE_URL" -o "$SOURCE_YUJI_LICENSE"
+curl -L --fail --silent --show-error "$FELL_REGULAR_URL" -o "$SOURCE_FELL_REGULAR_FONT"
+curl -L --fail --silent --show-error "$FELL_ITALIC_URL" -o "$SOURCE_FELL_ITALIC_FONT"
+curl -L --fail --silent --show-error "$FELL_SMALL_CAPS_URL" -o "$SOURCE_FELL_SMALL_CAPS_FONT"
+curl -L --fail --silent --show-error "$FELL_LICENSE_URL" -o "$SOURCE_FELL_LICENSE"
+curl -L --fail --silent --show-error "$FONDAMENTO_ITALIC_URL" -o "$SOURCE_FONDAMENTO_ITALIC_FONT"
+curl -L --fail --silent --show-error "$FONDAMENTO_LICENSE_URL" -o "$SOURCE_FONDAMENTO_LICENSE"
 
 verify_sha256() {
   local expected="$1"
@@ -65,6 +97,12 @@ verify_sha256 "$NOTO_FONT_SHA256" "$SOURCE_NOTO_FONT"
 verify_sha256 "$NOTO_LICENSE_SHA256" "$SOURCE_NOTO_LICENSE"
 verify_sha256 "$YUJI_FONT_SHA256" "$SOURCE_YUJI_FONT"
 verify_sha256 "$YUJI_LICENSE_SHA256" "$SOURCE_YUJI_LICENSE"
+verify_sha256 "$FELL_REGULAR_SHA256" "$SOURCE_FELL_REGULAR_FONT"
+verify_sha256 "$FELL_ITALIC_SHA256" "$SOURCE_FELL_ITALIC_FONT"
+verify_sha256 "$FELL_SMALL_CAPS_SHA256" "$SOURCE_FELL_SMALL_CAPS_FONT"
+verify_sha256 "$FELL_LICENSE_SHA256" "$SOURCE_FELL_LICENSE"
+verify_sha256 "$FONDAMENTO_ITALIC_SHA256" "$SOURCE_FONDAMENTO_ITALIC_FONT"
+verify_sha256 "$FONDAMENTO_LICENSE_SHA256" "$SOURCE_FONDAMENTO_LICENSE"
 
 # Collect every current Japanese/English codepoint from the content and canvas
 # renderer, then add a deliberately small punctuation safety set. ASCII is
@@ -135,6 +173,10 @@ subset_face() {
 subset_face "$SOURCE_YUJI_FONT" "$SUBSET_MANUSCRIPT_FONT"
 subset_face "$STATIC_NOTO_REGULAR_FONT" "$SUBSET_NOTO_REGULAR_FONT"
 subset_face "$STATIC_NOTO_SEMIBOLD_FONT" "$SUBSET_NOTO_SEMIBOLD_FONT"
+subset_face "$SOURCE_FELL_REGULAR_FONT" "$SUBSET_FELL_REGULAR_FONT"
+subset_face "$SOURCE_FELL_ITALIC_FONT" "$SUBSET_FELL_ITALIC_FONT"
+subset_face "$SOURCE_FELL_SMALL_CAPS_FONT" "$SUBSET_FELL_SMALL_CAPS_FONT"
+subset_face "$SOURCE_FONDAMENTO_ITALIC_FONT" "$SUBSET_FONDAMENTO_ITALIC_FONT"
 
 mkdir -p "$OUTPUT_DIR"
 install -m 0644 "$SUBSET_MANUSCRIPT_FONT" "$OUTPUT_MANUSCRIPT_FONT"
@@ -142,11 +184,21 @@ install -m 0644 "$SUBSET_NOTO_REGULAR_FONT" "$OUTPUT_NOTO_REGULAR_FONT"
 install -m 0644 "$SUBSET_NOTO_SEMIBOLD_FONT" "$OUTPUT_NOTO_SEMIBOLD_FONT"
 install -m 0644 "$SOURCE_NOTO_LICENSE" "$OUTPUT_DIR/OFL-NotoSerifJP.txt"
 install -m 0644 "$SOURCE_YUJI_LICENSE" "$OUTPUT_DIR/OFL-YujiSyuku.txt"
+install -m 0644 "$SUBSET_FELL_REGULAR_FONT" "$OUTPUT_FELL_REGULAR_FONT"
+install -m 0644 "$SUBSET_FELL_ITALIC_FONT" "$OUTPUT_FELL_ITALIC_FONT"
+install -m 0644 "$SUBSET_FELL_SMALL_CAPS_FONT" "$OUTPUT_FELL_SMALL_CAPS_FONT"
+install -m 0644 "$SOURCE_FELL_LICENSE" "$OUTPUT_DIR/OFL-IMFellEnglish.txt"
+install -m 0644 "$SUBSET_FONDAMENTO_ITALIC_FONT" "$OUTPUT_FONDAMENTO_ITALIC_FONT"
+install -m 0644 "$SOURCE_FONDAMENTO_LICENSE" "$OUTPUT_DIR/OFL-Fondamento.txt"
 
 "$FONTTOOLS_PY" - \
   "$OUTPUT_MANUSCRIPT_FONT" \
   "$OUTPUT_NOTO_REGULAR_FONT" \
   "$OUTPUT_NOTO_SEMIBOLD_FONT" \
+  "$OUTPUT_FELL_REGULAR_FONT" \
+  "$OUTPUT_FELL_ITALIC_FONT" \
+  "$OUTPUT_FELL_SMALL_CAPS_FONT" \
+  "$OUTPUT_FONDAMENTO_ITALIC_FONT" \
   "$CHARACTERS_FILE" <<'PY'
 from fontTools.ttLib import TTFont
 from pathlib import Path

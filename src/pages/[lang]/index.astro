@@ -1,5 +1,5 @@
 ---
-import PortfolioLab from "../../components/PortfolioLab";
+import { CanvasGrimoireExperience } from "../../components/CanvasGrimoireExperience";
 import { siteContent, type Locale } from "../../content/site";
 import "../../styles/global.css";
 
@@ -14,9 +14,26 @@ const lang = Astro.params.lang as Locale;
 const content = siteContent[lang];
 const alternateLang = lang === "ja" ? "en" : "ja";
 const alternateLabel = lang === "ja" ? "English" : "日本語";
+const title = lang === "ja"
+  ? "Ischca — バックエンドを軸にプロダクトを作るソフトウェアエンジニア"
+  : "Ischca — Software Engineer for Backend, Data, and Cloud";
 const description = lang === "ja"
   ? "バックエンドを軸に、プロダクト、クラウド、開発者ツールを横断するソフトウェアエンジニア、Ischcaのポートフォリオ。"
   : "Ischca is a software engineer working across backend products, cloud infrastructure, and developer tools.";
+const localeCode = lang === "ja" ? "ja_JP" : "en_US";
+const alternateLocaleCode = lang === "ja" ? "en_US" : "ja_JP";
+const publicBase = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const assetUrl = (path: string) => `${publicBase}${path.replace(/^\/+/, "")}`;
+const manuscriptFont = lang === "ja"
+  ? assetUrl("fonts/YujiSyuku-Portfolio.woff")
+  : assetUrl("fonts/IMFellEnglish-Portfolio.woff");
+const publicSiteUrl = import.meta.env.PUBLIC_SITE_URL?.replace(/\/$/, "");
+const canonicalUrl = publicSiteUrl ? `${publicSiteUrl}/${lang}/` : undefined;
+const socialImage = publicSiteUrl
+  ? `${publicSiteUrl}/og-ischca-grimoire.webp`
+  : assetUrl("og-ischca-grimoire.webp");
 ---
 
 <html lang={lang}>
@@ -24,17 +41,62 @@ const description = lang === "ja"
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#090d12" />
+    <meta name="author" content="Ischca" />
+    <meta name="robots" content="index,follow" />
+    <meta name="theme-color" content="#0c0907" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Ischca" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:locale" content={localeCode} />
+    <meta property="og:locale:alternate" content={alternateLocaleCode} />
+    <meta property="og:image" content={socialImage} />
+    <meta property="og:image:type" content="image/webp" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="An aged vellum manuscript with a rust-red arcane sigil and the name Ischca" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={socialImage} />
+    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+    <link rel="preload" href={manuscriptFont} as="font" type="font/woff" crossorigin="anonymous" />
+    <link rel="preload" href={assetUrl("textures/vellum-aged-v1.webp")} as="image" type="image/webp" />
+    <link rel="alternate" hreflang={lang} href={`../${lang}/`} />
     <link rel="alternate" hreflang={alternateLang} href={`../${alternateLang}/`} />
-    <title>Ischca — Software Engineer</title>
+    <link rel="alternate" hreflang="x-default" href="../en/" />
+    <title>{title}</title>
   </head>
   <body>
-    <PortfolioLab
-      client:load
-      locale={lang}
-      content={content}
-      alternateHref={`../${alternateLang}/`}
-      alternateLabel={alternateLabel}
-    />
+    <main id="content">
+      <CanvasGrimoireExperience
+        client:load
+        locale={lang}
+        content={content}
+        alternateHref={`../${alternateLang}/`}
+        alternateLabel={alternateLabel}
+      />
+      <noscript>
+        <article class="static-portfolio">
+          <p>{content.hero.eyebrow}</p>
+          <h1>Ischca</h1>
+          <p>{content.hero.line1}{content.hero.line2}</p>
+          <p>{content.hero.introduction}</p>
+          <section>
+            <h2>{content.sections.workTitle}</h2>
+            {content.work.map((item) => <div><h3>{item.title}</h3><p>{item.summary}</p></div>)}
+          </section>
+          <section>
+            <h2>{content.sections.careerTitle}</h2>
+            {content.career.map((item) => <div><h3>{item.company}</h3><p>{item.period} — {item.role}</p><p>{item.summary}</p></div>)}
+          </section>
+          <section>
+            <h2>{content.sections.productsTitle}</h2>
+            {content.products.map((item) => <div><h3>{item.name}</h3><p>{item.description}</p><p><a href={item.website}>{content.labels.website}</a> · <a href={item.github}>GitHub</a></p></div>)}
+          </section>
+          <p><a href="https://www.linkedin.com/in/shota-watanabe-r0102/">LinkedIn</a> · <a href="https://www.upwork.com/freelancers/~01a8bd9fc4315f48e2">Upwork</a></p>
+        </article>
+      </noscript>
+    </main>
   </body>
 </html>

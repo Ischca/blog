@@ -1,8 +1,14 @@
 # Portfolio font subsets
 
-`YujiSyuku-Portfolio.woff` is the primary manuscript face. Yuji Syuku was
-designed by Kinuta Font Factory and has the irregular, brush-written Japanese
-forms used by the grimoire's ink layer.
+The English grimoire uses `IMFellEnglish-Portfolio.woff` for its weathered
+seventeenth-century text, `IMFellEnglishSC-Portfolio.woff` for rubrics and small
+capitals, and `Fondamento-Portfolio-Italic.woff` for quill-written marginalia
+and the inscriptions revealed by a drag gesture. The matching IM Fell italic
+face is retained for future long-form quotations.
+
+`YujiSyuku-Portfolio.woff` remains available for the Japanese manuscript
+experiment. Yuji Syuku was designed by Kinuta Font Factory and has irregular,
+brush-written Japanese forms.
 
 `NotoSerifJP-Portfolio.woff` and `NotoSerifJP-Portfolio-Semibold.woff` are the
 regular-weight (400) and semibold-weight (600) reference faces for small labels
@@ -28,6 +34,13 @@ link label; that character should use the Noto fallback face.
 - Source revision: `038b637da7b3fd956a4ed93ffc607c3d5e4ce172`
 - Source face: `NotoSerifJP[wght].ttf`, instantiated at weights 400 and 600
 - License: SIL Open Font License 1.1; see `OFL-NotoSerifJP.txt`
+
+## IM Fell English and Fondamento
+
+- Sources: [IM Fell English](https://github.com/google/fonts/tree/038b637da7b3fd956a4ed93ffc607c3d5e4ce172/ofl/imfellenglish), [IM Fell English SC](https://github.com/google/fonts/tree/038b637da7b3fd956a4ed93ffc607c3d5e4ce172/ofl/imfellenglishsc), and [Fondamento](https://github.com/google/fonts/tree/038b637da7b3fd956a4ed93ffc607c3d5e4ce172/ofl/fondamento)
+- Source revision: `038b637da7b3fd956a4ed93ffc607c3d5e4ce172`
+- Source faces: `IMFeENrm28P.ttf`, `IMFeENit28P.ttf`, `IMFeENsc28P.ttf`, and `Fondamento-Italic.ttf`
+- License: SIL Open Font License 1.1; see `OFL-IMFellEnglish.txt` and `OFL-Fondamento.txt`
 
 Rebuild after copy changes with:
 
