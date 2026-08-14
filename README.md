@@ -33,6 +33,6 @@ pnpm build
 ```
 
 The production output is written to `dist/`. Pushes to `master` are deployed by
-GitHub Actions to [https://ischca.github.io/blog/](https://ischca.github.io/blog/).
-The workflow supplies the public origin and `/blog` base path so canonical URLs,
-social previews, fonts, and textures all resolve from the GitHub Pages project URL.
+GitHub Actions to [https://ischca.dev/](https://ischca.dev/) through GitHub Pages.
+The workflow supplies the public origin and root base path so canonical URLs,
+social previews, fonts, and textures all resolve from the custom domain.

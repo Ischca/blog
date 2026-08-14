@@ -27,8 +27,8 @@ jobs:
           node-version: 24
           package-manager: pnpm@11.2.1
         env:
-          PUBLIC_SITE_URL: https://ischca.github.io/blog
-          PUBLIC_BASE_PATH: /blog
+          PUBLIC_SITE_URL: https://ischca.dev
+          PUBLIC_BASE_PATH: /
 
   deploy:
     needs: build
