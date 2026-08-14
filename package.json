@@ -20,7 +20,7 @@
     "@astrojs/check": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "@types/three": "0.185.0",
+    "@types/three": "0.185.4",
     "typescript": "^6.0.3"
   },
   "packageManager": "pnpm@11.2.1"
