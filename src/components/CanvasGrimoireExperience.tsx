@@ -73,80 +73,80 @@ const SOCIAL_LINKS = [
 
 const COPY = {
   ja: {
-    volume: "ARCHIVUM ISCHCA · 二〇一六—",
-    title: "仕組みをつくり、\n長く生かすための記録。",
-    home: "序文",
-    work: "委嘱",
-    career: "遍歴",
-    products: "工房",
-    contact: "書簡",
-    workTitle: "引き受けられる仕事",
-    careerTitle: "これまでの遍歴",
-    productsTitle: "工房でつくったもの",
-    contactTitle: "書簡を送る",
+    volume: "ISCHCA · SOFTWARE ENGINEER",
+    title: "システムをつくり、\n長く運用できる状態にする。",
+    home: "プロフィール",
+    work: "対応できる仕事",
+    career: "経歴",
+    products: "プロダクト",
+    contact: "お問い合わせ",
+    workTitle: "対応できる仕事",
+    careerTitle: "経歴",
+    productsTitle: "プロダクト",
+    contactTitle: "お問い合わせ",
     homeCopy:
-      "バックエンド、データ、クラウド、そして個人でつくる道具。ここには、仕事と制作のあいだで積み重ねてきた記録を収めています。",
-    maxim: "複雑さは隠さず、扱える形までほどいていく。",
-    commissionIntro: "すでに動いている仕組みを読み解き、止めずに直す仕事を中心に引き受けています。",
-    careerIntro: "期間、役割、実際に担ったことを、現在から始まりまで遡って記します。",
-    productsIntro: "仕様から実装、使うところまで、自分の手で育てている二つの道具。",
-    fit: "向く相談",
-    scope: "担う範囲",
-    outcome: "手渡すもの",
-    tools: "用いる技術",
-    purpose: "この道具のねらい",
-    letterOpening: "条件が合いそうなら、まずはテキストでお声がけください。",
+      "バックエンド、データ、クラウドを中心に、既存システムの改善と個人プロダクトの開発に取り組むソフトウェアエンジニアです。",
+    maxim: "複雑なシステムを読み解き、保守しやすい形へ整えます。",
+    commissionIntro: "既存システムを読み解き、サービスを止めずに改善する仕事を中心に対応しています。",
+    careerIntro: "これまでの所属、役割、担当内容を、新しいものから順に掲載しています。",
+    productsIntro: "仕様策定から実装・運用まで、継続的に開発している個人プロダクトです。",
+    fit: "向いている案件",
+    scope: "対応範囲",
+    outcome: "成果物",
+    tools: "主な技術",
+    purpose: "概要",
+    letterOpening: "ご相談・ご依頼は、LinkedInまたはUpworkからテキストでご連絡ください。",
     signature: "— Ischca",
-    scroll: "スクロールすると、表層の筆跡が削られ、次の記録が現れる",
-    circleReady: "円が閉じた。筆を離してよい。錆色の星の線をすべてなぞれば、封が解ける。",
-    mechanismOpen: "八芒星の封が解け、羊皮紙の下の機構が動き始めた。",
-    traceStar: "筆を離してもよい。錆色の線をすべてなぞる",
-    harmlessMechanism: "これは余白の遊び。記録を隠す封ではない。",
-    draw: "余白へ線を刻むと、伏せられたインクが目を覚ます",
-    awake: "不可視の墨が現れた",
-    keyboard: "章はローマ数字、または左右キーで選べます。",
-    folio: "葉",
-    productLink: "銘をたどる",
-    correspondence: "条件が合いそうなら、テキストで声をかけてください。",
-    hidden: "線は命令ではない。紙が覚えていた形を、ただ呼び戻す。",
+    scroll: "スクロールして各セクションを見る",
+    circleReady: "円が完成しました。指やマウスを離し、錆色の星の線をすべてなぞると次の演出が始まります。",
+    mechanismOpen: "八芒星が完成し、技術レイヤーが開き始めました。",
+    traceStar: "一筆書きでなくても構いません。錆色の線をすべてなぞる",
+    harmlessMechanism: "ポートフォリオの情報は、この操作をしなくてもすべて閲覧できます。",
+    draw: "余白をドラッグすると、インクが反応します",
+    awake: "インクが反応しました",
+    keyboard: "各セクションはローマ数字、または左右キーで選べます。",
+    folio: "SECTION",
+    productLink: "リンクを開く",
+    correspondence: "ご相談・ご依頼はテキストでご連絡ください。",
+    hidden: "すべてのプロフィール情報は、操作の成否に関係なく表示されています。",
   },
   en: {
-    volume: "THE PRIVATE BOOK OF ISCHCA · BEGUN MMXVI",
-    title: "Of Systems, Instruments,\nand Their Long Keeping",
-    home: "Frontispiece",
-    work: "Commissions",
-    career: "Chronicle",
-    products: "Instruments",
-    contact: "Correspondence",
-    workTitle: "Of Works That May Be Commissioned",
-    careerTitle: "A Chronicle of Service",
-    productsTitle: "Instruments of the Workshop",
-    contactTitle: "Concerning Correspondence",
+    volume: "ISCHCA · SOFTWARE ENGINEER",
+    title: "Software Engineering\nfor Systems That Last",
+    home: "Profile",
+    work: "Services",
+    career: "Experience",
+    products: "Products",
+    contact: "Contact",
+    workTitle: "Services",
+    careerTitle: "Experience",
+    productsTitle: "Products",
+    contactTitle: "Contact",
     homeCopy:
-      "Here are entered the systems tended, the faults unbound, and the instruments made in the course of an engineer's practice.",
-    maxim: "Complexity is not to be hidden, but patiently unbound until it may be handled.",
-    commissionIntro: "Chiefly accepted are works that require an existing system to be read with care, amended without interruption, and left intelligible to those who follow.",
-    careerIntro: "An account of offices held and works undertaken, read backward from the present leaf to the first.",
-    productsIntro: "Two instruments kept under continual study, from their first specification to their daily use.",
-    fit: "the matter suited",
-    scope: "the undertaking",
-    outcome: "the work delivered",
-    tools: "the implements",
-    purpose: "the instrument's intent",
-    letterOpening: "Should the matter and manner appear well matched, a written note is the proper beginning.",
+      "I am a software engineer focused on backend, data, and cloud systems, working on both existing products and independently developed tools.",
+    maxim: "I make complex systems easier to understand, maintain, and improve.",
+    commissionIntro: "I mainly work on understanding and improving existing systems without disrupting ongoing delivery.",
+    careerIntro: "My roles, responsibilities, and technical work are listed in reverse chronological order.",
+    productsIntro: "Independent products that I continue to design, build, and maintain from specification through daily use.",
+    fit: "best suited for",
+    scope: "scope",
+    outcome: "deliverables",
+    tools: "technologies",
+    purpose: "overview",
+    letterOpening: "For project inquiries, contact me in writing through LinkedIn or Upwork.",
     signature: "— Ischca",
-    scroll: "Scroll, and the upper hand is scraped away to disclose the next record",
-    circleReady: "The circle holds. The quill may be lifted; trace every rusted chord to break the seal.",
-    mechanismOpen: "The octagram is unsealed. The instrument beneath the vellum is moving.",
-    traceStar: "The quill may be lifted. Trace every rusted chord",
-    harmlessMechanism: "A diversion in the margin; no record is sealed behind it.",
-    draw: "Draw upon the skin; the buried hand will answer",
-    awake: "The buried hand answers",
-    keyboard: "Turn the record by its Roman numeral, or by the arrow keys.",
-    folio: "fol.",
-    productLink: "follow the mark",
-    correspondence: "Should the matter fit, begin with a written note.",
-    hidden: "The mark gives no command. It recalls only what the skin was made to remember.",
+    scroll: "Scroll through the profile sections",
+    circleReady: "The circle is complete. Release the pointer, then trace every rust-colored line of the star to continue.",
+    mechanismOpen: "The octagram is complete. The technical layer is opening.",
+    traceStar: "Release the pointer if needed, and trace every rust-colored line",
+    harmlessMechanism: "All portfolio information is available without completing this interaction.",
+    draw: "Drag across the margin to activate the ink",
+    awake: "The ink responds",
+    keyboard: "Use the Roman numerals or arrow keys to move between sections.",
+    folio: "SECTION",
+    productLink: "open link",
+    correspondence: "For project inquiries, contact me in writing.",
+    hidden: "All profile information remains visible regardless of this interaction.",
   },
 } as const;
 
@@ -1038,7 +1038,7 @@ function drawFolio(context: CanvasRenderingContext2D, width: number, height: num
   context.save();
   context.font = referenceFont(width < 700 ? 8.5 : 9.5, 400, true);
   context.rotate(-0.015);
-  drawInkLine(context, `ISCHCA · ${COPY[locale].folio} ${String(active + 1).padStart(2, "0")} · CODEX PRIVATUS`, width * 0.5, height * 0.065, {
+  drawInkLine(context, `ISCHCA · ${COPY[locale].folio} ${String(active + 1).padStart(2, "0")} · PORTFOLIO`, width * 0.5, height * 0.065, {
     align: "center",
     alpha: 0.45,
     family: "reference",
@@ -1299,7 +1299,9 @@ function drawHome(
 
   drawFleuron(context, center, height * (narrow ? 0.84 : 0.865), width * (narrow ? 0.34 : 0.2), 131, 0.2);
   context.font = referenceFont(narrow ? 6.9 : 7.7, 400, true);
-  const imprint = `${content.hero.experienceValue} OF PRACTICE  ·  ${content.hero.focusValue}  ·  ${content.hero.communicationValue}`;
+  const imprint = locale === "ja"
+    ? `${content.hero.experienceLabel}: ${content.hero.experienceValue}  ·  ${content.hero.focusValue}  ·  ${content.hero.communicationValue}`
+    : `${content.hero.experienceValue} EXPERIENCE  ·  ${content.hero.focusValue}  ·  ${content.hero.communicationValue}`;
   drawInkLine(context, imprint, center, height * (narrow ? 0.88 : 0.9), {
     align: "center",
     alpha: 0.39,
@@ -1333,13 +1335,11 @@ function drawWork(
 
   context.save();
   context.font = referenceFont(narrow ? 9 : 10, 400, true);
-  drawInkLine(context, "CAPUT II · REGISTRUM COMMISSIONUM", width * (narrow ? 0.16 : 0.13), height * 0.14, {
+  drawInkLine(context, `02 · ${copy.work.toLocaleUpperCase()}`, width * (narrow ? 0.16 : 0.13), height * 0.14, {
     alpha: 0.44,
     family: "reference",
   });
-  const workHeading = !narrow && locale === "en"
-    ? ["Of Works That May", "Be Commissioned"]
-    : [copy.workTitle];
+  const workHeading = [copy.workTitle];
   drawRoughHeading(
     context,
     workHeading,
@@ -1372,7 +1372,7 @@ function drawWork(
     const entryWidth = width * position.width - inset;
     drawQuillBracket(context, -15, -10, narrow ? 164 : index === 0 ? 225 : 184, 1, 283 + index * 29, index === 0 ? 0.3 : 0.22);
     context.font = referenceFont(narrow ? 8 : 8.7, 400, true);
-    drawInkLine(context, `COMMISSIO ${ROMAN[index]}`, inset, -9, { alpha: 0.38, family: "reference" });
+    drawInkLine(context, `AREA ${ROMAN[index]}`, inset, -9, { alpha: 0.38, family: "reference" });
     context.font = font(locale, narrow ? 13.2 : index === 0 ? 18.5 : 16.5, 400);
     drawInkLine(context, item.title, inset, narrow ? 12 : 14, { maxWidth: entryWidth, alpha: 0.92, pressure: 0.72 });
     drawLooseRule(context, inset, narrow ? 21 : 25, entryWidth * (index === 0 ? 0.93 : 0.84), 293 + index * 17, 0.16);
@@ -1431,7 +1431,7 @@ function drawCareer(
 
   context.save();
   context.font = referenceFont(narrow ? 9 : 10, 400, true);
-  drawInkLine(context, "CAPUT III · PROVENIENTIA", width * (narrow ? 0.16 : 0.13), height * 0.14, { alpha: 0.44, family: "reference" });
+  drawInkLine(context, `03 · ${copy.career.toLocaleUpperCase()}`, width * (narrow ? 0.16 : 0.13), height * 0.14, { alpha: 0.44, family: "reference" });
   drawRoughHeading(context, [copy.careerTitle], width * (narrow ? 0.16 : 0.14), height * (narrow ? 0.205 : 0.215), narrow ? 23 : 35, locale);
   const careerIntroX = width * (narrow ? 0.29 : 0.59);
   const careerIntroY = height * (narrow ? 0.245 : 0.16);
@@ -1598,10 +1598,8 @@ function drawProducts(
 
   context.save();
   context.font = referenceFont(narrow ? 9 : 10, 400, true);
-  drawInkLine(context, "CAPUT IV · TABULAE OFFICINAE", width * (narrow ? 0.16 : 0.6), height * 0.14, { alpha: 0.44, family: "reference" });
-  const productsHeading = locale === "en"
-    ? ["Instruments of", "the Workshop"]
-    : [copy.productsTitle];
+  drawInkLine(context, `04 · ${copy.products.toLocaleUpperCase()}`, width * (narrow ? 0.16 : 0.6), height * 0.14, { alpha: 0.44, family: "reference" });
+  const productsHeading = [copy.productsTitle];
   drawRoughHeading(
     context,
     productsHeading,
@@ -1669,7 +1667,7 @@ function drawProducts(
     context.rotate(layout.angle);
     const textWidth = width * layout.width;
     context.font = referenceFont(narrow ? 7.5 : 8.2, 400, true);
-    drawInkLine(context, `TABULA ${index === 0 ? "A" : "B"} · ${product.kind}`, 0, 0, { alpha: 0.43, maxWidth: textWidth, family: "reference" });
+    drawInkLine(context, `PRODUCT ${index === 0 ? "A" : "B"} · ${product.kind}`, 0, 0, { alpha: 0.43, maxWidth: textWidth, family: "reference" });
     context.font = font(locale, narrow ? 17 : 23);
     drawInkLine(context, product.name, 0, narrow ? 22 : 27, { alpha: 0.94, maxWidth: textWidth, pressure: 0.74 });
     context.font = font(locale, narrow ? 8.9 : 10.2);
@@ -1715,7 +1713,7 @@ function drawContact(
   const spots = actionSpots(4, width);
   context.save();
   context.font = referenceFont(narrow ? 9 : 10, 400, true);
-  drawInkLine(context, "CAPUT V · EPISTOLA APERTA", width * (narrow ? 0.16 : 0.13), height * 0.14, { alpha: 0.44, family: "reference" });
+  drawInkLine(context, `05 · ${copy.contact.toLocaleUpperCase()}`, width * (narrow ? 0.16 : 0.13), height * 0.14, { alpha: 0.44, family: "reference" });
   drawRoughHeading(context, [copy.contactTitle], width * (narrow ? 0.16 : 0.145), height * (narrow ? 0.205 : 0.215), narrow ? 23 : 35, locale);
 
   context.save();
@@ -1746,7 +1744,7 @@ function drawContact(
 
   drawArchivistSeal(context, locale, width * (narrow ? 0.73 : 0.75), height * (narrow ? 0.46 : 0.43), narrow ? 38 : 55, "I", true);
   context.font = referenceFont(narrow ? 7.2 : 8, 400, true);
-  drawInkLine(context, "POST SCRIPTUM · VIAE EXTERNAE", width * (narrow ? 0.17 : 0.14), height * (narrow ? 0.57 : 0.61), {
+  drawInkLine(context, "PROFILES & CONTACT", width * (narrow ? 0.17 : 0.14), height * (narrow ? 0.57 : 0.61), {
     alpha: 0.34,
     family: "reference",
   });
@@ -1762,7 +1760,7 @@ function drawContact(
     context.font = font(locale, narrow ? 11.5 : 14);
     drawInkLine(context, SOCIAL_LINKS[index].label, 0, 0, { align: "center", alpha: 0.9 });
     context.font = referenceFont(narrow ? 6.8 : 7.5, 400, true);
-    drawInkLine(context, locale === "ja" ? "記録を開く" : "open record", 0, narrow ? 14 : 16, { align: "center", alpha: 0.35, family: "reference" });
+    drawInkLine(context, locale === "ja" ? "リンクを開く" : "open link", 0, narrow ? 14 : 16, { align: "center", alpha: 0.35, family: "reference" });
     context.restore();
   });
   context.restore();
@@ -4102,7 +4100,7 @@ export function CanvasGrimoireExperience({
   const returnToSurface = useCallback(() => {
     clearVersoTimers();
     setVersoPhase("recalling");
-    setAnnouncement(locale === "ja" ? "分解された層を羊皮紙へ再統合しています。" : "The separated layers are returning to the folio.");
+    setAnnouncement(locale === "ja" ? "分解されたレイヤーをポートフォリオへ再統合しています。" : "The separated layers are returning to the portfolio.");
     if (reducedMotionRef.current) {
       setVersoPhase("surface");
       setAnnouncement(COPY[locale].keyboard);
@@ -4619,7 +4617,7 @@ export function CanvasGrimoireExperience({
     <section
       ref={wrapperRef}
       className="canvas-grimoire-experience"
-      aria-label={locale === "ja" ? "Ischca のポートフォリオ羊皮紙" : "Ischca portfolio parchment"}
+      aria-label={locale === "ja" ? "Ischca のインタラクティブポートフォリオ" : "Ischca interactive portfolio"}
       onKeyDown={handleKeys}
     >
       <style>{STYLES}</style>

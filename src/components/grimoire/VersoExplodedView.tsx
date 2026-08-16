@@ -200,14 +200,14 @@ const LAYERS: readonly LayerDefinition[] = [
     subtitle: "PALIMPSEST TIMELINE",
     kind: "runtime",
     color: CYAN,
-    lines: ["SCROLL → PHASE → CHAPTER", "120 QUANTIZED STEPS"],
+    lines: ["SCROLL → PHASE → SECTION", "120 QUANTIZED STEPS"],
     render: "state",
-    evidence: "CHAPTER STATE / STATE-MACHINE SCHEMATIC",
+    evidence: "SECTION STATE / STATE-MACHINE SCHEMATIC",
     detail: {
-      ja: "ページを交換せず、一枚の羊皮紙へ章が滲出・吸収される時間軸です。スクロール量は章、局所進行度、前後の紙面を持つ状態へ変換されます。",
-      en: "A timeline in which chapters emerge from and absorb into one folio. Scroll distance becomes chapter, local progress, and a pair of adjoining manuscript states.",
-      metrics: [["CHAPTERS", "05"], ["STEPS", "120"], ["EASING", "SMOOTHSTEP"]],
-      pipeline: ["Normalize travel through the sticky section", "Resolve the current and next chapters", "Apply smoothstep after the first 14%", "Quantize the transition to increments of 1/120"],
+      ja: "単一の描画面上でプロフィールの各セクションを切り替える時間軸です。スクロール量を、現在のセクション、局所進行度、前後の描画状態へ変換します。",
+      en: "A timeline that transitions between portfolio sections on one drawing surface. Scroll distance becomes the active section, local progress, and a pair of adjoining render states.",
+      metrics: [["SECTIONS", "05"], ["STEPS", "120"], ["EASING", "SMOOTHSTEP"]],
+      pipeline: ["Normalize travel through the sticky section", "Resolve the current and next sections", "Apply smoothstep after the first 14%", "Quantize the transition to increments of 1/120"],
       code: ["const position = scrollProgress * (VIEW_IDS.length - 1);", "const rawTransitionProgress = smoothstep(0.14, 0.98, local);", "const transitionProgress = Math.round(rawTransitionProgress * 120) / 120;"]
     },
   },
@@ -238,10 +238,10 @@ const LAYERS: readonly LayerDefinition[] = [
     render: "source",
     evidence: "ARCHITECTURE SCHEMATIC",
     detail: {
-      ja: "実行構造を示す模式図です。Astroが日英の静的HTMLを生成し、React islandはclient:loadでhydrateされます。ThreeとTroikaはhydrate後に非同期importされ、紙面用の二つのGPU rendererを初期化します。儀式後にだけ読み込む構成ではありません。",
-      en: "A schematic of the real execution structure. Astro emits bilingual static HTML and the React island hydrates with client:load. Three and Troika are asynchronously imported after hydration to initialize the two surface GPU renderers; they are not deferred until after the ritual.",
+      ja: "実行構造を示す模式図です。Astroが日英の静的HTMLを生成し、React islandはclient:loadでhydrateされます。ThreeとTroikaはhydrate後に非同期importされ、紙面用の二つのGPU rendererを初期化します。隠しインタラクションの完了を待って読み込む構成ではありません。",
+      en: "A schematic of the real execution structure. Astro emits bilingual static HTML and the React island hydrates with client:load. Three and Troika are asynchronously imported after hydration to initialize the two surface GPU renderers; loading does not wait for the optional hidden interaction.",
       metrics: [["SHELL", "ASTRO STATIC"], ["HYDRATION", "CLIENT:LOAD"], ["SURFACE GPU", "02 RENDERERS"]],
-      pipeline: ["Astro generates /ja and /en HTML", "React hydrates the interactive manuscript", "PhysicalInkTextRenderer imports Three and Troika", "PhysicalParchmentRenderer imports Three and composites the surface"],
+      pipeline: ["Astro generates /ja and /en HTML", "React hydrates the interactive portfolio", "PhysicalInkTextRenderer imports Three and Troika", "PhysicalParchmentRenderer imports Three and composites the surface"],
       code: ["<CanvasGrimoireExperience client:load />", "const [three, troika] = await Promise.all([import(\"three\"), import(\"troika-three-text\")]);", "const physicalSurface = parchmentRenderer.renderFrame(size, sources);"]
     },
   },
@@ -249,12 +249,12 @@ const LAYERS: readonly LayerDefinition[] = [
 
 const COPY = {
   ja: {
-    title: "VERSO / LIVE STRUCTURE",
-    eyebrow: "羊皮紙の裏側で稼働する構造",
+    title: "RUNTIME / LIVE STRUCTURE",
+    eyebrow: "ポートフォリオを構成する実行レイヤー",
     instruction: "空間をドラッグして回転 · レイヤーを長押しして検査 · スクロールで分解幅を変更",
     return: "RETURN TO SURFACE",
     recalling: "RECALLING LAYERS",
-    chapter: "CHAPTER",
+    chapter: "SECTION",
     layer: "ACTIVE NODE",
     hold: "HOLD TO INSPECT",
     inspect: "LAYER INSPECTION",
@@ -265,12 +265,12 @@ const COPY = {
     heightProbe: "カーソル位置の高さと派生法線を解析",
   },
   en: {
-    title: "VERSO / LIVE STRUCTURE",
-    eyebrow: "THE STRUCTURE OPERATING BENEATH THE FOLIO",
+    title: "RUNTIME / LIVE STRUCTURE",
+    eyebrow: "RUNTIME LAYERS OF THIS PORTFOLIO",
     instruction: "DRAG SPACE TO ORBIT · HOLD A LAYER TO INSPECT · SCROLL TO EXPLODE",
     return: "RETURN TO SURFACE",
     recalling: "RECALLING LAYERS",
-    chapter: "CHAPTER",
+    chapter: "SECTION",
     layer: "ACTIVE NODE",
     hold: "HOLD TO INSPECT",
     inspect: "LAYER INSPECTION",
@@ -282,7 +282,7 @@ const COPY = {
   },
 } as const;
 
-const CHAPTERS = ["FRONTISPIECE", "COMMISSIONS", "CHRONICLE", "INSTRUMENTS", "CORRESPONDENCE"];
+const CHAPTERS = ["PROFILE", "SERVICES", "EXPERIENCE", "PRODUCTS", "CONTACT"];
 
 export function VersoExplodedView({
   phase,
