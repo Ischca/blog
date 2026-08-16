@@ -68,7 +68,7 @@ const SOCIAL_LINKS = [
   { label: "GitHub", href: "https://github.com/Ischca" },
   { label: "LinkedIn", href: "https://www.linkedin.com/in/shota-watanabe-16547a20b/" },
   { label: "Upwork", href: "https://www.upwork.com/freelancers/shotawatanabe" },
-  { label: "X", href: "https://twitter.com/ischca_dev" },
+  { label: "X", href: "https://x.com/ischca" },
 ];
 
 const COPY = {
