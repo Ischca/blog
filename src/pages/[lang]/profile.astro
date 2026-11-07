@@ -1,0 +1,1052 @@
+---
+import { CONTENT_UPDATED, SOCIAL_LINKS, siteContent, type Locale, type ProductEmblem } from "../../content/site";
+import "../../styles/global.css";
+
+export function getStaticPaths() {
+  return [
+    { params: { lang: "ja" } },
+    { params: { lang: "en" } },
+  ];
+}
+
+const lang = Astro.params.lang as Locale;
+const content = siteContent[lang];
+const alternateLang: Locale = lang === "ja" ? "en" : "ja";
+const publicBase = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const assetUrl = (path: string) => `${publicBase}${path.replace(/^\/+/, "")}`;
+const pageUrl = (locale: Locale, page = "") => assetUrl(`${locale}/${page}`);
+const publicSiteUrl = import.meta.env.PUBLIC_SITE_URL?.replace(/\/$/, "");
+const canonicalUrl = publicSiteUrl ? `${publicSiteUrl}/${lang}/profile/` : undefined;
+const socialImage = publicSiteUrl
+  ? `${publicSiteUrl}/og-ischca-grimoire.webp`
+  : assetUrl("og-ischca-grimoire.webp");
+const localeCode = lang === "ja" ? "ja_JP" : "en_US";
+const alternateLocaleCode = lang === "ja" ? "en_US" : "ja_JP";
+const roman = ["I", "II", "III", "IV", "V", "VI"];
+const external = { target: "_blank", rel: "noopener noreferrer" };
+
+const sections = [
+  { id: "products", label: content.navigation.products },
+  { id: "skills", label: content.navigation.skills },
+  { id: "selected-work", label: content.navigation.caseStudies },
+  { id: "career", label: content.navigation.career },
+  { id: "contact", label: content.navigation.contact },
+];
+
+const facts = [
+  { label: content.hero.experienceLabel, value: content.hero.experienceValue },
+  { label: content.hero.locationLabel, value: content.hero.locationValue },
+  { label: content.hero.focusLabel, value: content.hero.focusValue },
+  { label: content.hero.communicationLabel, value: content.hero.communicationValue },
+];
+
+// Ink emblems share the grimoire's product marks so both editions read as
+// one book. Each path is drawn in a 48×48 box with a single hairline stroke.
+const emblemPaths: Record<ProductEmblem, string[]> = {
+  lens: [
+    "M24 9a15 15 0 1 1 0 30a15 15 0 1 1 0-30",
+    "M24 3v10M24 35v10M3 24h10M35 24h10",
+    "M18 18l-4 0 0 4M30 18l4 0 0 4M18 30l-4 0 0-4M30 30l4 0 0-4",
+  ],
+  quill: [
+    "M38 6c-12 3-21 13-25 27l-3 9",
+    "M38 6c-2 10-9 19-20 24",
+    "M24 22l-6 1M29 15l-6 1",
+    "M10 44h28",
+  ],
+  prism: [
+    "M24 8l15 28H9z",
+    "M2 26l14-3",
+    "M31 22l15-9M32 25l14-2M32 28l13 6",
+  ],
+  branch: [
+    "M4 30c7-1 10-11 18-11",
+    "M22 19c7 0 9-10 20-9",
+    "M22 19c7 1 10 13 20 13",
+    "M4 30a2 2 0 1 0 0.1 0M42 10a2 2 0 1 0 0.1 0M42 32a2 2 0 1 0 0.1 0",
+  ],
+};
+
+const fontFaceCss = [
+  ["Ischca IM Fell English", "fonts/IMFellEnglish-Portfolio.woff", "normal", 400],
+  ["Ischca IM Fell English", "fonts/IMFellEnglish-Portfolio-Italic.woff", "italic", 400],
+  ["Ischca IM Fell English SC", "fonts/IMFellEnglishSC-Portfolio.woff", "normal", 400],
+  ["Ischca Yuji Syuku", "fonts/YujiSyuku-Portfolio.woff", "normal", 400],
+  ["Ischca Noto Serif JP", "fonts/NotoSerifJP-Portfolio.woff", "normal", 400],
+  ["Ischca Noto Serif JP", "fonts/NotoSerifJP-Portfolio-Semibold.woff", "normal", 600],
+].map(([family, path, style, weight]) => `@font-face{font-family:"${family}";src:url("${assetUrl(String(path))}") format("woff");font-style:${style};font-weight:${weight};font-display:swap;}`).join("");
+// The paper is generated rather than tiled from the grimoire's photograph:
+// stitched turbulence repeats without a visible seam on a long page.
+const svgUrl = (svg: string) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+const paperGrain = "<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.32 0 0 0 0 0.21 0 0 0 0 0.12 0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(#g)' opacity='0.4'/></svg>";
+const paperMottle = "<svg xmlns='http://www.w3.org/2000/svg' width='960' height='960'><filter id='m'><feTurbulence type='fractalNoise' baseFrequency='0.0055' numOctaves='3' seed='11' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.47 0 0 0 0 0.32 0 0 0 0 0.17 0 0 0 1.1 -0.42'/></filter><rect width='100%' height='100%' filter='url(#m)' opacity='0.32'/></svg>";
+const textureCss = `:root{--paper-grain:${svgUrl(paperGrain)};--paper-mottle:${svgUrl(paperMottle)};}`;
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "ProfilePage",
+  inLanguage: lang,
+  dateModified: CONTENT_UPDATED,
+  mainEntity: {
+    "@type": "Person",
+    name: "Ischca",
+    jobTitle: lang === "ja" ? "ソフトウェアエンジニア" : "Software Engineer",
+    homeLocation: { "@type": "Place", name: "Tokyo, Japan" },
+    sameAs: SOCIAL_LINKS.map((link) => link.href),
+    knowsAbout: content.skills.flatMap((group) => group.items),
+    ...(publicSiteUrl ? { url: `${publicSiteUrl}/` } : {}),
+  },
+};
+---
+
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{content.meta.profileTitle}</title>
+    <meta name="description" content={content.meta.profileDescription} />
+    <meta name="author" content="Ischca" />
+    <meta name="robots" content="index,follow" />
+    <meta name="theme-color" content="#0c0907" />
+    <link rel="icon" href={assetUrl("favicon.svg?v=1")} type="image/svg+xml" />
+    <link rel="icon" href={assetUrl("favicon-32x32.png?v=1")} sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href={assetUrl("apple-touch-icon.png?v=1")} sizes="180x180" />
+    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+    <link rel="alternate" hreflang={lang} href={pageUrl(lang, "profile/")} />
+    <link rel="alternate" hreflang={alternateLang} href={pageUrl(alternateLang, "profile/")} />
+    <link rel="alternate" hreflang="x-default" href={pageUrl("en", "profile/")} />
+    <meta property="og:type" content="profile" />
+    <meta property="og:site_name" content="Ischca" />
+    <meta property="og:title" content={content.meta.profileTitle} />
+    <meta property="og:description" content={content.meta.profileDescription} />
+    <meta property="og:locale" content={localeCode} />
+    <meta property="og:locale:alternate" content={alternateLocaleCode} />
+    <meta property="og:image" content={socialImage} />
+    <meta property="og:image:type" content="image/webp" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={content.meta.profileTitle} />
+    <meta name="twitter:description" content={content.meta.profileDescription} />
+    <meta name="twitter:image" content={socialImage} />
+    <link rel="preload" href={assetUrl(lang === "ja" ? "fonts/NotoSerifJP-Portfolio.woff" : "fonts/IMFellEnglish-Portfolio.woff")} as="font" type="font/woff" crossorigin="anonymous" />
+    <style set:html={fontFaceCss + textureCss}></style>
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(structuredData)}></script>
+  </head>
+  <body class={`profile profile--${lang}`}>
+    <a class="skip-link" href="#main">{lang === "ja" ? "本文へ移動" : "Skip to content"}</a>
+
+    <header class="masthead">
+      <a class="masthead-mark" href={pageUrl(lang)} aria-label={content.labels.viewGrimoire}>
+        <img src={assetUrl("favicon.svg?v=1")} alt="" width="28" height="28" />
+        <span>Ischca</span>
+      </a>
+      <nav class="masthead-nav" aria-label={lang === "ja" ? "ページ内の章" : "Sections"}>
+        {sections.map((section, index) => (
+          <a href={`#${section.id}`}><span class="masthead-numeral" aria-hidden="true">{roman[index]}</span>{section.label}</a>
+        ))}
+      </nav>
+      <div class="masthead-tools">
+        <a href={pageUrl(alternateLang, "profile/")} lang={alternateLang} hreflang={alternateLang}>{content.labels.language}</a>
+        <a href={pageUrl(lang)}>{content.labels.viewGrimoire}</a>
+      </div>
+    </header>
+
+    <main id="main" class="folio">
+      <section class="title-page" aria-labelledby="title">
+        <p class="kicker">{content.hero.eyebrow}</p>
+        <h1 id="title">Ischca</h1>
+        <p class="title-role">{content.hero.role}</p>
+        <svg class="fleuron" viewBox="0 0 240 20" aria-hidden="true">
+          <path d="M120 10c-18-9-34 8-54 2S28 4 8 10M120 10c18-9 34 8 54 2s38-8 58-2" />
+          <circle cx="120" cy="10" r="2.4" />
+          <ellipse cx="88" cy="8" rx="5" ry="1.8" transform="rotate(-18 88 8)" />
+          <ellipse cx="152" cy="8" rx="5" ry="1.8" transform="rotate(18 152 8)" />
+          <ellipse cx="64" cy="12" rx="4" ry="1.5" transform="rotate(14 64 12)" />
+          <ellipse cx="176" cy="12" rx="4" ry="1.5" transform="rotate(-14 176 12)" />
+        </svg>
+        <p class="title-lead">{content.hero.introduction}</p>
+        <dl class="facts">
+          {facts.map((fact) => (
+            <div>
+              <dt>{fact.label}</dt>
+              <dd>{fact.value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <nav class="catalog" aria-labelledby="catalog-title">
+          <p id="catalog-title" class="catalog-title">{content.sections.productsTitle}</p>
+          <ol>
+            {content.products.map((product, index) => (
+              <li>
+                <a href={`#${product.id}`}>
+                  <span class="catalog-numeral" aria-hidden="true">{roman[index]}</span>
+                  <span class="catalog-name">{product.name}</span>
+                  <span class="catalog-kind">{product.kind}</span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+
+        <ul class="profiles" aria-label={lang === "ja" ? "公開プロフィール" : "Public profiles"}>
+          {SOCIAL_LINKS.map((link) => (
+            <li><a href={link.href} {...external}>{link.label}</a></li>
+          ))}
+        </ul>
+      </section>
+
+      <section id="products" class="chapter" aria-labelledby="products-title">
+        <header class="chapter-head">
+          <p class="kicker"><span aria-hidden="true">I · </span>{content.sections.productsKicker}</p>
+          <h2 id="products-title">{content.sections.productsTitle}</h2>
+          <p class="chapter-intro">{content.sections.productsIntro}</p>
+        </header>
+        <div class="product-grid">
+          {content.products.map((product) => (
+            <article id={product.id} class="product" aria-labelledby={`${product.id}-name`}>
+              <header class="product-head">
+                <svg class="emblem" viewBox="0 0 48 48" aria-hidden="true">
+                  {emblemPaths[product.emblem].map((d) => <path d={d} />)}
+                </svg>
+                <div>
+                  <p class="product-meta">
+                    <span>{product.kind}</span>
+                    <span class="product-status">{product.status}</span>
+                  </p>
+                  <h3 id={`${product.id}-name`}>{product.name}</h3>
+                </div>
+              </header>
+              <p class="product-tagline">{product.tagline}</p>
+              <ul class="product-highlights bullets">
+                {product.highlights.map((highlight) => <li>{highlight}</li>)}
+              </ul>
+              <p class="product-role"><span class="label">{content.labels.role}</span>{product.role}</p>
+              <ul class="chips" aria-label={content.labels.stack}>
+                {product.stack.map((item) => <li>{item}</li>)}
+              </ul>
+              <p class="product-links">
+                {product.links.map((link) => (
+                  <a href={link.href} {...external}>{link.label}<span aria-hidden="true"> ↗</span></a>
+                ))}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="skills" class="chapter" aria-labelledby="skills-title">
+        <header class="chapter-head">
+          <p class="kicker"><span aria-hidden="true">II · </span>{content.sections.skillsKicker}</p>
+          <h2 id="skills-title">{content.sections.skillsTitle}</h2>
+          <p class="chapter-intro">{content.sections.skillsIntro}</p>
+        </header>
+        <div class="skill-grid">
+          {content.skills.map((group) => (
+            <article class="skill">
+              <h3>{group.area}</h3>
+              <ul class="chips">
+                {group.items.map((item) => <li>{item}</li>)}
+              </ul>
+              <p class="skill-evidence"><span class="label">{content.labels.evidence}</span>{group.evidence}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="selected-work" class="chapter" aria-labelledby="selected-work-title">
+        <header class="chapter-head">
+          <p class="kicker"><span aria-hidden="true">III · </span>{content.sections.caseStudiesKicker}</p>
+          <h2 id="selected-work-title">{content.sections.caseStudiesTitle}</h2>
+          <p class="chapter-intro">{content.sections.caseStudiesIntro}</p>
+        </header>
+        <div class="case-list">
+          {content.caseStudies.map((study) => (
+            <article class="case">
+              <div class="case-meta">
+                <p class="case-organization">{study.organization}</p>
+                {study.period && <p class="case-period">{study.period}</p>}
+                <p class="case-role">{study.role}</p>
+              </div>
+              <div class="case-body">
+                <h3>{study.title}</h3>
+                <p>{study.summary}</p>
+                <ul class="bullets">
+                  {study.highlights.map((highlight) => <li>{highlight}</li>)}
+                </ul>
+                <ul class="chips" aria-label={content.labels.stack}>
+                  {study.stack.map((item) => <li>{item}</li>)}
+                </ul>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="career" class="chapter" aria-labelledby="career-title">
+        <header class="chapter-head">
+          <p class="kicker"><span aria-hidden="true">IV · </span>{content.sections.careerKicker}</p>
+          <h2 id="career-title">{content.sections.careerTitle}</h2>
+          <p class="chapter-intro">{content.sections.careerIntro}</p>
+        </header>
+        <ol class="timeline">
+          {content.career.map((item) => (
+            <li class="timeline-entry">
+              <p class="timeline-period">{item.period}</p>
+              <div class="timeline-body">
+                <h3>
+                  {item.company}
+                  {item.project && <span class="tag">{content.labels.project}</span>}
+                </h3>
+                <p class="timeline-role">{item.role}</p>
+                <p>{item.summary}</p>
+                <ul class="bullets">
+                  {item.details.map((detail) => <li>{detail}</li>)}
+                </ul>
+                <p class="timeline-stack">{item.stack}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section id="contact" class="chapter" aria-labelledby="contact-title">
+        <header class="chapter-head">
+          <p class="kicker"><span aria-hidden="true">V · </span>{content.sections.contactKicker}</p>
+          <h2 id="contact-title">{content.sections.contactTitle}</h2>
+        </header>
+        <div class="contact">
+          <div class="contact-letter">
+            <p>{content.hero.availability}</p>
+            <p>{content.sections.contactIntro}</p>
+            <ul class="profiles">
+              {SOCIAL_LINKS.map((link) => (
+                <li><a href={link.href} {...external}>{link.label}</a></li>
+              ))}
+            </ul>
+          </div>
+          <div class="services">
+            <h3>{content.sections.workTitle}</h3>
+            <p class="services-intro">{content.sections.workIntro}</p>
+            <dl>
+              {content.work.map((item) => (
+                <div>
+                  <dt>{item.title}</dt>
+                  <dd>{item.summary}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="colophon">
+      <p>© {CONTENT_UPDATED.slice(0, 4)} Ischca</p>
+      <p>{content.labels.updated}: <time datetime={CONTENT_UPDATED}>{CONTENT_UPDATED}</time></p>
+      <p><a href={pageUrl(lang)}>{content.labels.viewGrimoire}</a></p>
+    </footer>
+  </body>
+</html>
+
+<style is:global>
+  .profile {
+    --ink: #2b1a11;
+    --ink-soft: #4d3427;
+    --ink-faint: #6e5546;
+    --rubric: #8a3424;
+    --rule: rgba(64, 38, 24, 0.22);
+    --vellum: #f1e8d6;
+    --chip: rgba(255, 251, 241, 0.55);
+    --serif-ja: "Ischca Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", serif;
+    --serif-en: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --display-ja: "Ischca Yuji Syuku", "Ischca Noto Serif JP", "Hiragino Mincho ProN", serif;
+    --display-en: "Ischca IM Fell English", "Iowan Old Style", Georgia, serif;
+    --small-caps: "Ischca IM Fell English SC", "Iowan Old Style", Georgia, serif;
+    color-scheme: light;
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(120% 60% at 50% 0%, #241811 0%, #0c0907 70%) fixed,
+      #0c0907;
+    font-family: var(--serif-en);
+    font-size: 17px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .profile--ja {
+    font-family: var(--serif-ja);
+    font-size: 16px;
+    line-height: 1.9;
+    line-break: strict;
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+  .profile a {
+    color: inherit;
+    text-decoration-color: rgba(138, 52, 36, 0.45);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.24em;
+    transition: color 160ms ease, text-decoration-color 160ms ease;
+  }
+  .profile a:hover {
+    color: var(--rubric);
+    text-decoration-color: currentColor;
+  }
+  .profile a:focus-visible {
+    outline: 2px solid var(--rubric);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+  .profile ::selection {
+    color: var(--ink);
+    background: rgba(181, 119, 69, 0.32);
+  }
+
+  .skip-link {
+    position: absolute;
+    left: 16px;
+    top: -60px;
+    z-index: 10;
+    padding: 8px 14px;
+    color: var(--ink);
+    background: var(--vellum);
+  }
+  .skip-link:focus {
+    top: 12px;
+  }
+
+  .masthead {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 14px clamp(16px, 3vw, 30px);
+    color: rgba(239, 228, 208, 0.82);
+    background: linear-gradient(rgba(12, 9, 7, 0.94), rgba(12, 9, 7, 0.78));
+    backdrop-filter: blur(6px);
+    font-family: var(--small-caps);
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+  }
+  .profile--ja .masthead {
+    font-family: var(--serif-ja);
+    letter-spacing: 0.04em;
+  }
+  .masthead a {
+    text-decoration: none;
+  }
+  .masthead a:hover {
+    color: #f4e7cf;
+  }
+  .masthead-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
+    font-family: var(--display-en);
+    font-size: 1.2rem;
+    letter-spacing: 0.03em;
+  }
+  .masthead-mark img {
+    display: block;
+  }
+  .masthead-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    margin-inline: auto;
+  }
+  .masthead-numeral {
+    margin-right: 6px;
+    color: rgba(214, 140, 112, 0.85);
+    font-family: var(--small-caps);
+    font-size: 0.78em;
+  }
+  .masthead-tools {
+    display: flex;
+    gap: 16px;
+    flex: none;
+  }
+
+  .folio {
+    position: relative;
+    max-width: 1120px;
+    margin: 8px auto 0;
+    padding: clamp(28px, 6vw, 84px) clamp(20px, 6.5vw, 92px) clamp(36px, 6vw, 72px);
+    background-color: var(--vellum);
+    background-image:
+      radial-gradient(130% 70% at 50% 0%, rgba(255, 251, 240, 0.6), rgba(255, 251, 240, 0) 62%),
+      var(--paper-mottle),
+      var(--paper-grain);
+    background-size: 100% 100%, 960px 960px, 280px 280px;
+    background-repeat: no-repeat, repeat, repeat;
+    border-radius: 3px;
+    box-shadow:
+      0 30px 90px rgba(0, 0, 0, 0.55),
+      inset 0 0 120px rgba(120, 82, 50, 0.16);
+  }
+
+  .kicker {
+    margin: 0 0 6px;
+    color: var(--rubric);
+    font-family: var(--small-caps);
+    font-size: 0.86rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .title-page {
+    display: grid;
+    justify-items: center;
+    padding-bottom: clamp(24px, 4vw, 44px);
+    text-align: center;
+  }
+  .title-page h1 {
+    margin: 0;
+    font-family: var(--display-en);
+    font-size: clamp(3.4rem, 9vw, 6.2rem);
+    font-weight: 400;
+    line-height: 1;
+    letter-spacing: 0.01em;
+  }
+  .title-role {
+    margin: 14px 0 0;
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+  }
+  .fleuron {
+    width: min(240px, 60%);
+    margin: 22px 0 18px;
+    fill: none;
+    stroke: rgba(64, 38, 24, 0.5);
+    stroke-width: 1;
+  }
+  .fleuron circle,
+  .fleuron ellipse {
+    fill: rgba(64, 38, 24, 0.42);
+    stroke: none;
+  }
+  .title-lead {
+    max-width: 40em;
+    margin: 0;
+    color: var(--ink-soft);
+  }
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 34px;
+    margin: 26px 0 0;
+  }
+  .facts div {
+    display: grid;
+    gap: 2px;
+  }
+  .facts dt {
+    color: var(--ink-faint);
+    font-family: var(--small-caps);
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .facts dd {
+    margin: 0;
+    font-size: 0.98rem;
+  }
+
+  .catalog {
+    width: min(100%, 760px);
+    margin-top: clamp(30px, 4vw, 46px);
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+  }
+  .catalog-title {
+    margin: 0 0 10px;
+    color: var(--rubric);
+    font-family: var(--small-caps);
+    font-size: 0.86rem;
+    letter-spacing: 0.14em;
+  }
+  .catalog ol {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 28px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    text-align: left;
+  }
+  .catalog a {
+    display: grid;
+    grid-template-columns: 2.2em auto 1fr;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 4px;
+    border-bottom: 1px dotted var(--rule);
+    text-decoration: none;
+  }
+  .catalog-numeral {
+    color: var(--rubric);
+    font-family: var(--small-caps);
+    font-size: 0.85rem;
+  }
+  .catalog-name {
+    font-family: var(--display-en);
+    font-size: 1.24rem;
+  }
+  .catalog-kind {
+    overflow: hidden;
+    color: var(--ink-faint);
+    font-size: 0.86rem;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .profiles {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 22px;
+    margin: 26px 0 0;
+    padding: 0;
+    list-style: none;
+    font-family: var(--small-caps);
+    letter-spacing: 0.1em;
+  }
+
+  .chapter {
+    padding-top: clamp(44px, 6vw, 72px);
+    border-top: 1px solid var(--rule);
+    margin-top: clamp(30px, 4vw, 48px);
+  }
+  .chapter-head {
+    display: grid;
+    gap: 4px;
+    margin-bottom: clamp(24px, 3.4vw, 40px);
+  }
+  .chapter-head h2 {
+    margin: 0;
+    font-family: var(--display-en);
+    font-size: clamp(2rem, 4.2vw, 2.9rem);
+    font-weight: 400;
+    line-height: 1.15;
+  }
+  .profile--ja .chapter-head h2 {
+    font-family: var(--display-ja);
+    letter-spacing: 0.06em;
+  }
+  .chapter-intro {
+    max-width: 42em;
+    margin: 8px 0 0;
+    color: var(--ink-soft);
+  }
+
+  .label {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--ink-faint);
+    font-family: var(--small-caps);
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .profile--ja .label {
+    font-family: var(--serif-ja);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .chips li {
+    padding: 1px 9px 2px;
+    border: 1px solid rgba(64, 38, 24, 0.28);
+    border-radius: 2px;
+    color: var(--ink-soft);
+    background: var(--chip);
+    font-size: 0.82rem;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(30px, 4vw, 52px) clamp(28px, 4vw, 56px);
+  }
+  .product {
+    display: flex;
+    flex-direction: column;
+    padding: clamp(20px, 2.4vw, 28px);
+    border: 1px solid rgba(64, 38, 24, 0.2);
+    background: rgba(255, 252, 244, 0.38);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+    scroll-margin-top: 90px;
+  }
+  .product-head {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    align-items: center;
+    gap: 16px;
+  }
+  .emblem {
+    width: 48px;
+    height: 48px;
+    fill: none;
+    stroke: var(--rubric);
+    stroke-width: 1.3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .product-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 0;
+    line-height: 1.55;
+    color: var(--ink-faint);
+    font-size: 0.82rem;
+    letter-spacing: 0.02em;
+  }
+  .product-status {
+    color: var(--rubric);
+  }
+  .product h3 {
+    margin: 0;
+    font-family: var(--display-en);
+    font-size: clamp(1.8rem, 3vw, 2.2rem);
+    font-weight: 400;
+    line-height: 1.1;
+  }
+  .product-tagline {
+    margin: 16px 0 0;
+    font-size: 1.04em;
+  }
+  .bullets {
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--ink-soft);
+  }
+  .bullets li {
+    position: relative;
+    margin: 4px 0;
+    padding-left: 1.15em;
+  }
+  .bullets li::before {
+    content: "";
+    position: absolute;
+    left: 0.2em;
+    top: 0.78em;
+    top: calc(0.5lh - 2.5px);
+    width: 5px;
+    height: 5px;
+    background: var(--rubric);
+    opacity: 0.72;
+    transform: rotate(45deg);
+  }
+  .product-role {
+    margin: 16px 0 0;
+    color: var(--ink-soft);
+    font-size: 0.94em;
+  }
+  .product-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 22px;
+    margin: auto 0 0;
+    padding-top: 18px;
+    font-family: var(--small-caps);
+    letter-spacing: 0.08em;
+  }
+  .profile--ja .product-links {
+    font-family: var(--serif-ja);
+    letter-spacing: 0.04em;
+  }
+
+  .skill-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+    gap: 28px clamp(24px, 3vw, 40px);
+  }
+  .skill {
+    padding-top: 14px;
+    border-top: 2px solid rgba(138, 52, 36, 0.38);
+  }
+  .skill h3 {
+    margin: 0;
+    font-size: 1.12rem;
+    font-weight: 600;
+  }
+  .skill .chips {
+    margin-top: 10px;
+  }
+  .skill-evidence {
+    margin: 12px 0 0;
+    color: var(--ink-soft);
+    font-size: 0.9em;
+    line-height: 1.75;
+  }
+
+  .case-list {
+    display: grid;
+    gap: clamp(30px, 4vw, 44px);
+  }
+  .case {
+    display: grid;
+    grid-template-columns: minmax(176px, 0.32fr) 1fr;
+    gap: clamp(18px, 3vw, 44px);
+  }
+  .case-meta p {
+    margin: 0;
+  }
+  .case-organization {
+    font-family: var(--display-en);
+    font-size: 1.5rem;
+    line-height: 1.2;
+  }
+  .case-period,
+  .case-role {
+    color: var(--ink-faint);
+    font-size: 0.88rem;
+  }
+  .case-role {
+    margin-top: 4px !important;
+    color: var(--rubric);
+  }
+  .case-role,
+  .timeline-role,
+  .product-meta span,
+  .facts dd {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  .case-body h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+  .case-body > p {
+    margin: 8px 0 0;
+  }
+
+  .timeline {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .timeline-entry {
+    display: grid;
+    grid-template-columns: minmax(176px, 0.32fr) 1fr;
+    gap: clamp(18px, 3vw, 44px);
+    padding: 22px 0;
+    border-bottom: 1px dotted var(--rule);
+  }
+  .timeline-entry:first-child {
+    padding-top: 0;
+  }
+  .timeline-period {
+    margin: 0;
+    color: var(--ink-faint);
+    font-family: var(--serif-en);
+    font-size: 0.92rem;
+    letter-spacing: 0.04em;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  .timeline-body h3 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    margin: 0;
+    font-family: var(--display-en);
+    font-size: 1.5rem;
+    font-weight: 400;
+    line-height: 1.2;
+  }
+  .tag {
+    padding: 0 8px;
+    border: 1px solid rgba(138, 52, 36, 0.4);
+    border-radius: 2px;
+    color: var(--rubric);
+    font-family: var(--small-caps);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+  }
+  .profile--ja .tag {
+    font-family: var(--serif-ja);
+  }
+  .timeline-role {
+    margin: 2px 0 6px;
+    color: var(--rubric);
+    font-size: 0.92rem;
+  }
+  .timeline-body > p:not(.timeline-role):not(.timeline-stack) {
+    margin: 0;
+  }
+  .timeline-stack {
+    margin: 10px 0 0;
+    color: var(--ink-faint);
+    font-size: 0.86rem;
+  }
+
+  .contact {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: clamp(28px, 4vw, 56px);
+  }
+  .contact-letter p {
+    margin: 0 0 12px;
+  }
+  .contact-letter .profiles {
+    justify-content: flex-start;
+    margin-top: 18px;
+    font-size: 1.05rem;
+  }
+  .services h3 {
+    margin: 0;
+    font-size: 1.12rem;
+    font-weight: 600;
+  }
+  .services-intro {
+    margin: 6px 0 0;
+    color: var(--ink-soft);
+    font-size: 0.94em;
+  }
+  .services dl {
+    margin: 14px 0 0;
+  }
+  .services dl div {
+    padding: 10px 0;
+    border-top: 1px dotted var(--rule);
+  }
+  .services dt {
+    font-weight: 600;
+  }
+  .services dd {
+    margin: 2px 0 0;
+    color: var(--ink-soft);
+    font-size: 0.92em;
+  }
+
+  .colophon {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 24px;
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 26px 16px 40px;
+    color: rgba(239, 228, 208, 0.62);
+    font-family: var(--small-caps);
+    font-size: 0.84rem;
+    letter-spacing: 0.08em;
+  }
+  .colophon p {
+    margin: 0;
+  }
+
+  @media (max-width: 860px) {
+    .masthead {
+      flex-wrap: wrap;
+      gap: 8px 16px;
+    }
+    .masthead-nav {
+      order: 3;
+      width: 100%;
+      margin-inline: 0;
+      overflow-x: auto;
+      flex-wrap: nowrap;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+    .masthead-nav a {
+      flex: none;
+    }
+    .masthead-tools {
+      margin-left: auto;
+    }
+    .product-grid,
+    .contact,
+    .catalog ol {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .profile {
+      font-size: 16px;
+    }
+    .profile--ja {
+      font-size: 15px;
+    }
+    .folio {
+      margin: 4px 8px 0;
+      padding: 26px 18px 34px;
+    }
+    .catalog ol {
+      grid-template-columns: 1fr;
+    }
+    .catalog-kind {
+      white-space: normal;
+    }
+    .case,
+    .timeline-entry {
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+    .product {
+      padding: 18px 16px;
+    }
+  }
+
+  @media print {
+    .profile {
+      background: #fff;
+      font-size: 11pt;
+    }
+    .masthead,
+    .skip-link,
+    .colophon a {
+      display: none;
+    }
+    .folio {
+      max-width: none;
+      margin: 0;
+      padding: 0;
+      background: none;
+      box-shadow: none;
+    }
+    .product,
+    .case,
+    .timeline-entry {
+      break-inside: avoid;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .profile a {
+      transition: none;
+    }
+  }
+</style>

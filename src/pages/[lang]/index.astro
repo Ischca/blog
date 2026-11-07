@@ -1,6 +1,6 @@
 ---
 import { CanvasGrimoireExperience } from "../../components/CanvasGrimoireExperience";
-import { siteContent, type Locale } from "../../content/site";
+import { SOCIAL_LINKS, siteContent, type Locale } from "../../content/site";
 import "../../styles/global.css";
 
 export function getStaticPaths() {
@@ -13,13 +13,8 @@ export function getStaticPaths() {
 const lang = Astro.params.lang as Locale;
 const content = siteContent[lang];
 const alternateLang = lang === "ja" ? "en" : "ja";
-const alternateLabel = lang === "ja" ? "English" : "日本語";
-const title = lang === "ja"
-  ? "Ischca — バックエンドを軸にプロダクトを作るソフトウェアエンジニア"
-  : "Ischca — Software Engineer for Backend, Data, and Cloud";
-const description = lang === "ja"
-  ? "バックエンドを軸に、プロダクト、クラウド、開発者ツールを横断するソフトウェアエンジニア、Ischcaのポートフォリオ。"
-  : "Ischca is a software engineer working across backend products, cloud infrastructure, and developer tools.";
+const alternateLabel = content.labels.language;
+const { title, description } = content.meta;
 const localeCode = lang === "ja" ? "ja_JP" : "en_US";
 const alternateLocaleCode = lang === "ja" ? "en_US" : "ja_JP";
 const publicBase = import.meta.env.BASE_URL.endsWith("/")
@@ -34,6 +29,7 @@ const canonicalUrl = publicSiteUrl ? `${publicSiteUrl}/${lang}/` : undefined;
 const socialImage = publicSiteUrl
   ? `${publicSiteUrl}/og-ischca-grimoire.webp`
   : assetUrl("og-ischca-grimoire.webp");
+const profileHref = assetUrl(`${lang}/profile/`);
 ---
 
 <html lang={lang}>
@@ -78,26 +74,35 @@ const socialImage = publicSiteUrl
         content={content}
         alternateHref={`../${alternateLang}/`}
         alternateLabel={alternateLabel}
+        profileHref={profileHref}
       />
       <noscript>
         <article class="static-portfolio">
           <p>{content.hero.eyebrow}</p>
           <h1>Ischca</h1>
-          <p>{content.hero.line1}{content.hero.line2}</p>
+          <p>{content.hero.role}</p>
           <p>{content.hero.introduction}</p>
+          <p><a href={profileHref}>{content.labels.readInFull}</a></p>
           <section>
-            <h2>{content.sections.workTitle}</h2>
-            {content.work.map((item) => <div><h3>{item.title}</h3><p>{item.summary}</p></div>)}
+            <h2>{content.sections.productsTitle}</h2>
+            {content.products.map((item) => (
+              <div>
+                <h3>{item.name}</h3>
+                <p>{item.kind} · {item.status}</p>
+                <p>{item.tagline}</p>
+                <p>{item.links.map((link, index) => <>{index > 0 && " · "}<a href={link.href}>{link.label}</a></>)}</p>
+              </div>
+            ))}
+          </section>
+          <section>
+            <h2>{content.sections.skillsTitle}</h2>
+            {content.skills.map((group) => <p><strong>{group.area}</strong>: {group.items.join(", ")}</p>)}
           </section>
           <section>
             <h2>{content.sections.careerTitle}</h2>
             {content.career.map((item) => <div><h3>{item.company}</h3><p>{item.period} — {item.role}</p><p>{item.summary}</p></div>)}
           </section>
-          <section>
-            <h2>{content.sections.productsTitle}</h2>
-            {content.products.map((item) => <div><h3>{item.name}</h3><p>{item.description}</p><p><a href={item.website}>{content.labels.website}</a> · <a href={item.github}>GitHub</a></p></div>)}
-          </section>
-          <p><a href="https://www.linkedin.com/in/shota-watanabe-r0102/">LinkedIn</a> · <a href="https://www.upwork.com/freelancers/~01a8bd9fc4315f48e2">Upwork</a></p>
+          <p>{SOCIAL_LINKS.map((link, index) => <>{index > 0 && " · "}<a href={link.href}>{link.label}</a></>)}</p>
         </article>
       </noscript>
     </main>

@@ -10,7 +10,7 @@ import type {
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
 } from "react";
-import type { Locale, SiteContent } from "../content/site";
+import { SOCIAL_LINKS, type Locale, type ProductEmblem, type SiteContent } from "../content/site";
 import {
   PhysicalInkTextRenderer,
   type PhysicalInkTextRun,
@@ -53,9 +53,22 @@ type ActionSpot = {
   width: number;
   height: number;
 };
+/** A row of visible text links written under one product entry. */
+type ProductLinkRow = {
+  product: string;
+  links: { label: string; href: string }[];
+  x: number;
+  y: number;
+};
 
-const VIEW_IDS: ViewId[] = ["home", "work", "career", "products", "contact"];
+// Products come straight after the title page: the folio should show what was
+// made before it describes how the work is done.
+const VIEW_IDS: ViewId[] = ["home", "products", "work", "career", "contact"];
 const ROMAN = ["I", "II", "III", "IV", "V"];
+
+function chapterNumber(view: ViewId) {
+  return String(VIEW_IDS.indexOf(view) + 1).padStart(2, "0");
+}
 const INK = "#2d1c13";
 const INK_SOFT = "rgba(53, 31, 20, .72)";
 const AWAKENED_INK = "#5b2d24";
@@ -64,40 +77,19 @@ const PUBLIC_BASE = import.meta.env.BASE_URL.endsWith("/")
   : `${import.meta.env.BASE_URL}/`;
 const assetUrl = (path: string) => `${PUBLIC_BASE}${path.replace(/^\/+/, "")}`;
 
-const SOCIAL_LINKS = [
-  { label: "GitHub", href: "https://github.com/Ischca" },
-  { label: "LinkedIn", href: "https://www.linkedin.com/in/shota-watanabe-16547a20b/" },
-  { label: "Upwork", href: "https://www.upwork.com/freelancers/shotawatanabe" },
-  { label: "X", href: "https://x.com/ischca" },
-];
-
+// Interface copy for the grimoire itself. Portfolio facts and section copy live
+// in `content/site.ts`, which the full profile page reads as well.
 const COPY = {
   ja: {
-    volume: "ISCHCA · SOFTWARE ENGINEER",
-    title: "システムをつくり、\n長く運用できる状態にする。",
-    home: "プロフィール",
-    work: "対応できる仕事",
-    career: "経歴",
-    products: "プロダクト",
-    contact: "お問い合わせ",
-    workTitle: "対応できる仕事",
-    careerTitle: "経歴",
-    productsTitle: "プロダクト",
-    contactTitle: "お問い合わせ",
-    homeCopy:
-      "バックエンド、データ、クラウドを中心に、既存システムの改善と個人プロダクトの開発に取り組むソフトウェアエンジニアです。",
-    maxim: "複雑なシステムを読み解き、保守しやすい形へ整えます。",
-    commissionIntro: "既存システムを読み解き、サービスを止めずに改善する仕事を中心に対応しています。",
-    careerIntro: "これまでの所属、役割、担当内容を、新しいものから順に掲載しています。",
-    productsIntro: "仕様策定から実装・運用まで、継続的に開発している個人プロダクトです。",
+    volume: "ISCHCA · SOFTWARE ENGINEER · TOKYO",
+    home: "扉",
+    catalog: "収録作品",
+    craft: "主な技術",
     fit: "向いている案件",
     scope: "対応範囲",
     outcome: "成果物",
     tools: "主な技術",
-    purpose: "概要",
-    letterOpening: "ご相談・ご依頼は、LinkedInまたはUpworkからテキストでご連絡ください。",
     signature: "— Ischca",
-    scroll: "スクロールして各セクションを見る",
     circleReady: "円が完成しました。指やマウスを離し、錆色の星の線をすべてなぞると次の演出が始まります。",
     mechanismOpen: "八芒星が完成し、技術レイヤーが開き始めました。",
     traceStar: "一筆書きでなくても構いません。錆色の線をすべてなぞる",
@@ -106,36 +98,18 @@ const COPY = {
     awake: "インクが反応しました",
     keyboard: "各セクションはローマ数字、または左右キーで選べます。",
     folio: "SECTION",
-    productLink: "リンクを開く",
-    correspondence: "ご相談・ご依頼はテキストでご連絡ください。",
     hidden: "すべてのプロフィール情報は、操作の成否に関係なく表示されています。",
   },
   en: {
-    volume: "ISCHCA · SOFTWARE ENGINEER",
-    title: "Software Engineering\nfor Systems That Last",
-    home: "Profile",
-    work: "Services",
-    career: "Experience",
-    products: "Products",
-    contact: "Contact",
-    workTitle: "Services",
-    careerTitle: "Experience",
-    productsTitle: "Products",
-    contactTitle: "Contact",
-    homeCopy:
-      "I am a software engineer focused on backend, data, and cloud systems, working on both existing products and independently developed tools.",
-    maxim: "I make complex systems easier to understand, maintain, and improve.",
-    commissionIntro: "I mainly work on understanding and improving existing systems without disrupting ongoing delivery.",
-    careerIntro: "My roles, responsibilities, and technical work are listed in reverse chronological order.",
-    productsIntro: "Independent products that I continue to design, build, and maintain from specification through daily use.",
+    volume: "ISCHCA · SOFTWARE ENGINEER · TOKYO",
+    home: "Title page",
+    catalog: "In this volume",
+    craft: "Craft",
     fit: "best suited for",
     scope: "scope",
     outcome: "deliverables",
     tools: "technologies",
-    purpose: "overview",
-    letterOpening: "For project inquiries, contact me in writing through LinkedIn or Upwork.",
     signature: "— Ischca",
-    scroll: "Scroll through the profile sections",
     circleReady: "The circle is complete. Release the pointer, then trace every rust-colored line of the star to continue.",
     mechanismOpen: "The octagram is complete. The technical layer is opening.",
     traceStar: "Release the pointer if needed, and trace every rust-colored line",
@@ -144,8 +118,6 @@ const COPY = {
     awake: "The ink responds",
     keyboard: "Use the Roman numerals or arrow keys to move between sections.",
     folio: "SECTION",
-    productLink: "open link",
-    correspondence: "For project inquiries, contact me in writing.",
     hidden: "All profile information remains visible regardless of this interaction.",
   },
 } as const;
@@ -155,6 +127,8 @@ const FONT_EN = '"Ischca IM Fell English", "Iowan Old Style", "Baskerville", Geo
 const FONT_HAND_JA = '"Ischca Yuji Syuku", "YuMincho", "Hiragino Mincho ProN", serif';
 const FONT_HAND_EN = '"Ischca Fondamento", "Apple Chancery", cursive';
 const FONT_REFERENCE = '"Ischca IM Fell English SC", "Iowan Old Style", "Baskerville", Georgia, serif';
+// Latin display face for the author's name and product names in both locales.
+const FONT_DISPLAY = '"Ischca IM Fell English", "Iowan Old Style", "Baskerville", Georgia, serif';
 
 type InkTextCollection = {
   runs: PhysicalInkTextRun[];
@@ -250,8 +224,28 @@ function handFont(locale: Locale, size: number) {
   return `italic 400 ${size}px ${locale === "ja" ? FONT_HAND_JA : FONT_HAND_EN}`;
 }
 
+function displayFont(size: number) {
+  return `400 ${size}px ${FONT_DISPLAY}`;
+}
+
 function referenceFont(size: number, weight = 400, italic = false) {
   return `${italic ? "italic " : ""}${weight} ${size}px ${FONT_REFERENCE}`;
+}
+
+// Japanese line-breaking rules (kinsoku). Closing punctuation, small kana, and
+// the prolonged sound mark never begin a line; they hang into the margin of
+// the previous line instead. Opening brackets never end a line.
+const NO_LINE_START = new Set(Array.from(
+  "、。，．,.:;：；!?！？)]}）］｝〕〉》」』】〙〗〟’”｠»ー…‥・ゝゞヽヾ々〻ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶ%％",
+));
+const NO_LINE_END = new Set(Array.from("([{（［｛〔〈《「『【〘〖〝‘“｟«"));
+
+function lineTokens(text: string) {
+  // Japanese prose breaks between characters, but Latin product names,
+  // versions, and numbers inside it ("LinkedIn", "v0.6.0", "N+1") stay whole.
+  const cjk = /[　-ヿ㐀-鿿＀-￯]/u.test(text);
+  if (!cjk) return text.split(/(\s+)/).filter(Boolean);
+  return text.match(/[A-Za-z0-9][A-Za-z0-9.+#@'’/_-]*|\s+|./gsu) ?? [];
 }
 
 function wrapLines(
@@ -260,31 +254,36 @@ function wrapLines(
   maxWidth: number,
   maxLines = Number.POSITIVE_INFINITY,
 ) {
-  // Japanese prose can contain Latin product names and therefore spaces.  A
-  // whitespace-only heuristic turns the whole Japanese sentence into one
-  // token and makes Canvas squeeze it into a single line.  Treat any CJK-rich
-  // string as grapheme-set text so the handwritten column wraps naturally.
-  const cjk = /[\u3000-\u30ff\u3400-\u9fff]/u.test(text);
-  const tokens = cjk ? Array.from(text) : text.split(/(\s+)/).filter(Boolean);
+  const tokens = lineTokens(text);
   const lines: string[] = [];
   let line = "";
+  let truncated = false;
 
   for (const token of tokens) {
     const candidate = `${line}${token}`;
-    if (line && context.measureText(candidate).width > maxWidth) {
-      lines.push(line.trimEnd());
-      line = token.trimStart();
-      if (lines.length >= maxLines) break;
-    } else {
+    if (!line || NO_LINE_START.has(token) || context.measureText(candidate).width <= maxWidth) {
       line = candidate;
+      continue;
+    }
+    let carry = "";
+    while (line.length > 1 && NO_LINE_END.has(line.slice(-1))) {
+      carry = `${line.slice(-1)}${carry}`;
+      line = line.slice(0, -1);
+    }
+    lines.push(line.trimEnd());
+    line = `${carry}${token}`.trimStart();
+    if (lines.length >= maxLines) {
+      truncated = true;
+      line = "";
+      break;
     }
   }
-  if (line && lines.length < maxLines) lines.push(line.trimEnd());
-  if (lines.length === maxLines && tokens.length > 0) {
-    const last = lines.at(-1);
-    if (last && context.measureText(text).width > maxWidth * maxLines) {
-      lines[lines.length - 1] = `${last.replace(/[\s。、,.]*$/, "")}…`;
-    }
+  if (line) {
+    if (lines.length < maxLines) lines.push(line.trimEnd());
+    else truncated = true;
+  }
+  if (truncated && lines.length > 0) {
+    lines[lines.length - 1] = `${lines[lines.length - 1].replace(/[\s。、,.]*$/u, "")}…`;
   }
   return lines;
 }
@@ -303,9 +302,17 @@ function drawInkLine(
     pressure?: number;
     absorption?: number;
     seed?: number;
-    family?: "manuscript" | "reference";
+    family?: "manuscript" | "reference" | "display";
   } = {},
 ) {
+  // Troika's GPOS handling collapses the full-width middle dot (U+30FB) of
+  // Noto Serif JP, the reference face, to almost no advance. Reference runs
+  // therefore use the Latin middle dot, spaced when it joins Latin words.
+  if (options.family === "reference" && text.includes("・")) {
+    text = text
+      .replace(/(?<=[A-Za-z0-9])・(?=[A-Za-z0-9])/gu, " · ")
+      .replace(/・/gu, "·");
+  }
   context.save();
   context.textAlign = options.align ?? "left";
   context.textBaseline = "alphabetic";
@@ -341,10 +348,36 @@ function drawInkLine(
       family: options.family ?? "manuscript",
       whiteSpace: "nowrap",
       overflowWrap: "normal",
+      font: context.font,
     });
   } else if (options.maxWidth) context.fillText(text, x, y, options.maxWidth);
   else context.fillText(text, x, y);
   context.restore();
+}
+
+/**
+ * Writes runs whose SDF glyphs are still being generated with Canvas2D, in the
+ * same position, size, and pigment. The GPU ink replaces each run as soon as
+ * its glyphs are ready, so a first visit never shows an empty folio.
+ */
+function drawPendingInk(context: CanvasRenderingContext2D, runs: readonly PhysicalInkTextRun[]) {
+  runs.forEach((run) => {
+    if (!run.font) return;
+    context.save();
+    context.translate(run.x, run.y);
+    if (run.rotation) context.rotate(run.rotation);
+    context.font = run.font.replace(/[\d.]+px/u, `${run.size}px`);
+    context.textAlign = run.align ?? "left";
+    context.textBaseline = "alphabetic";
+    context.globalAlpha = run.alpha ?? 1;
+    context.fillStyle = typeof run.color === "string" ? run.color : INK;
+    if (run.letterSpacing) {
+      (context as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${run.letterSpacing * run.size}px`;
+    }
+    if (run.maxWidth && Number.isFinite(run.maxWidth)) context.fillText(run.text, 0, 0, run.maxWidth);
+    else context.fillText(run.text, 0, 0);
+    context.restore();
+  });
 }
 
 function parseCanvasFont(value: string) {
@@ -388,15 +421,20 @@ function drawWrapped(
     color?: string;
     alpha?: number;
     align?: CanvasTextAlign;
+    family?: "manuscript" | "reference" | "display";
   } = {},
 ) {
   const lines = wrapLines(context, text, maxWidth, options.maxLines);
+  // Hanging punctuation may reach one glyph past the measure; allow for it so
+  // the line is not condensed to fit.
+  const hang = context.measureText("。").width;
   lines.forEach((line, index) => {
     drawInkLine(context, line, x, y + index * lineHeight, {
       color: options.color,
       alpha: options.alpha,
       align: options.align,
-      maxWidth,
+      maxWidth: maxWidth + hang,
+      family: options.family,
     });
   });
   return y + lines.length * lineHeight;
@@ -1242,74 +1280,142 @@ function drawHome(
 ) {
   const copy = COPY[locale];
   const narrow = width < 700;
-  context.save();
   const center = width * 0.5;
-  context.font = referenceFont(narrow ? 8.2 : 9.5, 400, true);
-  drawInkLine(context, copy.volume, center, height * (narrow ? 0.145 : 0.13), {
+  context.save();
+  context.font = referenceFont(narrow ? 8.6 : 10, 400, true);
+  drawInkLine(context, copy.volume, center, height * (narrow ? 0.125 : 0.12), {
     align: "center",
-    alpha: 0.5,
+    alpha: 0.56,
     family: "reference",
     letterSpacing: 0.045,
   });
-  drawFleuron(context, center, height * (narrow ? 0.18 : 0.175), width * (narrow ? 0.3 : 0.2), 19, 0.31);
+  drawFleuron(context, center, height * (narrow ? 0.16 : 0.158), width * (narrow ? 0.3 : 0.2), 19, 0.31);
 
-  const titleSize = narrow ? 25 : clamp(38, width * 0.04, 52);
-  const titleLines = copy.title.split("\n");
-  context.font = font(locale, titleSize);
-  titleLines.forEach((line, index) => {
-    drawInkLine(context, line, center, height * (narrow ? 0.27 : 0.285) + index * titleSize * 1.22, {
-      align: "center",
-      alpha: 0.95,
-      pressure: 0.74,
-      absorption: 0.77,
-      letterSpacing: 0.018,
-      maxWidth: width * (narrow ? 0.72 : 0.62),
+  // The title page names the author and lists what the volume contains. The
+  // products come first; prose about the work stays in the later folios.
+  const titleSize = narrow ? 46 : clamp(58, width * 0.056, 84);
+  context.font = displayFont(titleSize);
+  drawInkLine(context, "Ischca", center, height * (narrow ? 0.255 : 0.27), {
+    align: "center",
+    alpha: 0.95,
+    pressure: 0.76,
+    absorption: 0.78,
+    letterSpacing: 0.012,
+    family: "display",
+  });
+  context.font = font(locale, narrow ? 11 : 13.2);
+  drawWrapped(context, content.hero.lead, center, height * (narrow ? 0.305 : 0.335), width * (narrow ? 0.74 : 0.5), narrow ? 17 : 21, {
+    maxLines: 2,
+    color: "rgba(53,31,20,.78)",
+    align: "center",
+  });
+
+  drawFleuron(context, center, height * (narrow ? 0.39 : 0.405), width * (narrow ? 0.26 : 0.16), 73, 0.26);
+  context.font = referenceFont(narrow ? 8.4 : 9.6, 400, true);
+  drawInkLine(context, copy.catalog.toLocaleUpperCase(), center, height * (narrow ? 0.435 : 0.455), {
+    align: "center",
+    alpha: 0.72,
+    color: AWAKENED_INK,
+    family: "reference",
+    letterSpacing: 0.08,
+  });
+
+  const columns = narrow ? [0.24] : [0.27, 0.53];
+  const rows = narrow ? [0.49, 0.555, 0.62, 0.685] : [0.515, 0.6];
+  content.products.slice(0, 4).forEach((product, index) => {
+    const x = width * columns[narrow ? 0 : index % 2];
+    const y = height * rows[narrow ? index : Math.floor(index / 2)];
+    context.font = referenceFont(narrow ? 8.4 : 9.4, 400, true);
+    drawInkLine(context, ROMAN[index], x - (narrow ? 14 : 18), y, {
+      align: "right",
+      alpha: 0.66,
+      color: AWAKENED_INK,
+      family: "reference",
+    });
+    context.font = displayFont(narrow ? 18.5 : 22);
+    drawInkLine(context, product.name, x, y, { alpha: 0.92, pressure: 0.72, family: "display" });
+    context.font = font(locale, narrow ? 9.4 : 10.4);
+    drawInkLine(context, product.kind, x, y + (narrow ? 15 : 18), {
+      alpha: 0.72,
+      color: INK_SOFT,
+      maxWidth: width * (narrow ? 0.62 : 0.22),
     });
   });
-  drawFleuron(context, center, height * (narrow ? 0.37 : 0.42), width * (narrow ? 0.42 : 0.28), 73, 0.25);
 
-  context.font = font(locale, narrow ? 10.4 : 12.5);
-  const prefaceEnd = drawWrapped(
-    context,
-    copy.homeCopy,
-    center,
-    height * (narrow ? 0.43 : 0.48),
-    width * (narrow ? 0.63 : 0.43),
-    narrow ? 18 : 21,
-    { maxLines: narrow ? 5 : 4, color: INK_SOFT, align: "center" },
-  );
-  context.font = font(locale, narrow ? 8.9 : 10.3);
-  drawWrapped(
-    context,
-    content.hero.introduction,
-    center,
-    prefaceEnd + (narrow ? 13 : 16),
-    width * (narrow ? 0.58 : 0.38),
-    narrow ? 15.5 : 17.5,
-    { maxLines: narrow ? 7 : 5, color: "rgba(53,31,20,.61)", align: "center" },
-  );
-
-  drawPrinterMark(context, locale, center, height * (narrow ? 0.69 : 0.72), narrow ? 31 : 38);
-  context.font = handFont(locale, narrow ? 10.5 : 13);
-  drawWrapped(context, copy.maxim, center, height * (narrow ? 0.755 : 0.79), width * (narrow ? 0.58 : 0.38), narrow ? 18 : 21, {
-    maxLines: 3,
-    color: "rgba(60,35,20,.6)",
+  context.font = referenceFont(narrow ? 8.4 : 9.6, 400, true);
+  drawInkLine(context, copy.craft.toLocaleUpperCase(), center, height * (narrow ? 0.765 : 0.705), {
     align: "center",
+    alpha: 0.72,
+    color: AWAKENED_INK,
+    family: "reference",
+    letterSpacing: 0.08,
+  });
+  context.font = referenceFont(narrow ? 9.6 : 11.4);
+  drawWrapped(context, content.hero.craft, center, height * (narrow ? 0.795 : 0.74), width * (narrow ? 0.7 : 0.56), narrow ? 15 : 18, {
+    maxLines: 2,
+    color: "rgba(53,31,20,.8)",
+    align: "center",
+    family: "reference",
   });
 
-  drawFleuron(context, center, height * (narrow ? 0.84 : 0.865), width * (narrow ? 0.34 : 0.2), 131, 0.2);
-  context.font = referenceFont(narrow ? 6.9 : 7.7, 400, true);
+  if (!narrow) drawPrinterMark(context, locale, center, height * 0.815, 22);
+  context.font = referenceFont(narrow ? 7.8 : 8.6, 400, true);
   const imprint = locale === "ja"
-    ? `${content.hero.experienceLabel}: ${content.hero.experienceValue}  ·  ${content.hero.focusValue}  ·  ${content.hero.communicationValue}`
+    ? `${content.hero.experienceLabel} ${content.hero.experienceValue}  ·  ${content.hero.focusValue}  ·  ${content.hero.communicationValue}`
     : `${content.hero.experienceValue} EXPERIENCE  ·  ${content.hero.focusValue}  ·  ${content.hero.communicationValue}`;
-  drawInkLine(context, imprint, center, height * (narrow ? 0.88 : 0.9), {
+  drawWrapped(context, imprint, center, height * (narrow ? 0.875 : 0.885), width * (narrow ? 0.7 : 0.6), narrow ? 13 : 14, {
+    maxLines: 2,
+    color: "rgba(53,31,20,.58)",
     align: "center",
-    alpha: 0.39,
-    maxWidth: width * (narrow ? 0.68 : 0.52),
     family: "reference",
-    letterSpacing: 0.025,
   });
   context.restore();
+}
+
+function drawChapterHeader(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  locale: Locale,
+  view: ViewId,
+  label: string,
+  title: string,
+  options: { titleX?: number; titleY?: number; kickerX?: number; titleSize?: number; maxWidth?: number } = {},
+) {
+  const narrow = width < 700;
+  context.font = referenceFont(narrow ? 9 : 10, 400, true);
+  drawInkLine(context, `${chapterNumber(view)} · ${label.toLocaleUpperCase()}`, width * (options.kickerX ?? (narrow ? 0.16 : 0.13)), height * 0.14, {
+    alpha: 0.54,
+    family: "reference",
+  });
+  drawRoughHeading(
+    context,
+    [title],
+    width * (options.titleX ?? (narrow ? 0.16 : 0.145)),
+    height * (options.titleY ?? (narrow ? 0.205 : 0.2)),
+    options.titleSize ?? (narrow ? 23 : 34),
+    locale,
+    undefined,
+    options.maxWidth,
+  );
+}
+
+function drawChapterIntro(
+  context: CanvasRenderingContext2D,
+  locale: Locale,
+  text: string,
+  x: number,
+  y: number,
+  width: number,
+  narrow: boolean,
+  maxLines: number,
+) {
+  drawDecoratedInitial(context, locale, text.slice(0, 1), x - (narrow ? 26 : 35), y + (narrow ? 15 : 19), narrow ? 28 : 38);
+  context.font = font(locale, narrow ? 9 : 10.4);
+  drawWrapped(context, text.slice(1), x, y, width, narrow ? 14.5 : 17, {
+    maxLines,
+    color: "rgba(53,31,20,.7)",
+  });
 }
 
 function drawWork(
@@ -1334,33 +1440,19 @@ function drawWork(
       ];
 
   context.save();
-  context.font = referenceFont(narrow ? 9 : 10, 400, true);
-  drawInkLine(context, `02 · ${copy.work.toLocaleUpperCase()}`, width * (narrow ? 0.16 : 0.13), height * 0.14, {
-    alpha: 0.44,
-    family: "reference",
+  drawChapterHeader(context, width, height, locale, "work", content.navigation.work, content.sections.workTitle, {
+    titleY: narrow ? 0.205 : 0.19,
+    titleSize: narrow ? 23 : 33,
   });
-  const workHeading = [copy.workTitle];
-  drawRoughHeading(
+  drawChapterIntro(
     context,
-    workHeading,
-    width * (narrow ? 0.16 : 0.145),
-    height * (narrow ? 0.205 : 0.19),
-    narrow ? 23 : 33,
     locale,
-    narrow ? 29 : 35,
-  );
-  const introX = width * (narrow ? 0.25 : 0.65);
-  const introY = height * (narrow ? 0.255 : 0.16);
-  drawDecoratedInitial(context, locale, copy.commissionIntro.slice(0, 1), introX - (narrow ? 26 : 35), introY + (narrow ? 15 : 19), narrow ? 28 : 38);
-  context.font = font(locale, narrow ? 8.8 : 10.2);
-  drawWrapped(
-    context,
-    copy.commissionIntro.slice(1),
-    introX,
-    introY,
+    content.sections.workIntro,
+    width * (narrow ? 0.25 : 0.65),
+    height * (narrow ? 0.255 : 0.16),
     width * (narrow ? 0.57 : 0.21),
-    narrow ? 14.5 : 17,
-    { maxLines: narrow ? 3 : 5, color: "rgba(53,31,20,.57)" },
+    narrow,
+    narrow ? 3 : 5,
   );
 
   content.work.slice(0, 3).forEach((item, index) => {
@@ -1372,7 +1464,7 @@ function drawWork(
     const entryWidth = width * position.width - inset;
     drawQuillBracket(context, -15, -10, narrow ? 164 : index === 0 ? 225 : 184, 1, 283 + index * 29, index === 0 ? 0.3 : 0.22);
     context.font = referenceFont(narrow ? 8 : 8.7, 400, true);
-    drawInkLine(context, `AREA ${ROMAN[index]}`, inset, -9, { alpha: 0.38, family: "reference" });
+    drawInkLine(context, `AREA ${ROMAN[index]}`, inset, -9, { alpha: 0.5, family: "reference" });
     context.font = font(locale, narrow ? 13.2 : index === 0 ? 18.5 : 16.5, 400);
     drawInkLine(context, item.title, inset, narrow ? 12 : 14, { maxWidth: entryWidth, alpha: 0.92, pressure: 0.72 });
     drawLooseRule(context, inset, narrow ? 21 : 25, entryWidth * (index === 0 ? 0.93 : 0.84), 293 + index * 17, 0.16);
@@ -1383,7 +1475,7 @@ function drawWork(
     });
     let cursor = drawLedgerField(context, locale, copy.fit, item.fit, inset, summaryY + 3, entryWidth, {
       narrow,
-      maxLines: narrow ? 2 : 2,
+      maxLines: 2,
     });
     cursor = drawLedgerField(context, locale, copy.scope, item.scope, inset, cursor + 1, entryWidth, {
       narrow,
@@ -1393,9 +1485,9 @@ function drawWork(
       narrow,
       maxLines: narrow ? 1 : 2,
     });
-    context.font = referenceFont(narrow ? 7.1 : 7.8, 400, true);
+    context.font = referenceFont(narrow ? 7.6 : 8.3, 400, true);
     drawInkLine(context, `${copy.tools.toLocaleUpperCase()} · ${item.stack}`, inset, cursor + (narrow ? 2 : 4), {
-      alpha: 0.38,
+      alpha: 0.54,
       maxWidth: entryWidth,
       family: "reference",
     });
@@ -1412,38 +1504,40 @@ function drawCareer(
   locale: Locale,
 ) {
   const narrow = width < 700;
-  const copy = COPY[locale];
   const positions = narrow
     ? [
         { x: 0.15, y: 0.29, width: 0.58, angle: -0.013, side: -1 },
         { x: 0.3, y: 0.42, width: 0.57, angle: 0.012, side: 1 },
         { x: 0.14, y: 0.55, width: 0.59, angle: -0.01, side: -1 },
         { x: 0.29, y: 0.68, width: 0.58, angle: 0.012, side: 1 },
-        { x: 0.16, y: 0.78, width: 0.6, angle: -0.012, side: -1 },
+        { x: 0.16, y: 0.8, width: 0.6, angle: -0.012, side: -1 },
       ]
     : [
         { x: 0.12, y: 0.3, width: 0.31, angle: -0.012, side: -1 },
         { x: 0.55, y: 0.425, width: 0.32, angle: 0.012, side: 1 },
         { x: 0.14, y: 0.55, width: 0.3, angle: -0.01, side: -1 },
         { x: 0.54, y: 0.675, width: 0.32, angle: 0.011, side: 1 },
-        { x: 0.16, y: 0.77, width: 0.33, angle: -0.013, side: -1 },
+        { x: 0.16, y: 0.785, width: 0.33, angle: -0.013, side: -1 },
       ];
 
   context.save();
-  context.font = referenceFont(narrow ? 9 : 10, 400, true);
-  drawInkLine(context, `03 · ${copy.career.toLocaleUpperCase()}`, width * (narrow ? 0.16 : 0.13), height * 0.14, { alpha: 0.44, family: "reference" });
-  drawRoughHeading(context, [copy.careerTitle], width * (narrow ? 0.16 : 0.14), height * (narrow ? 0.205 : 0.215), narrow ? 23 : 35, locale);
-  const careerIntroX = width * (narrow ? 0.29 : 0.59);
-  const careerIntroY = height * (narrow ? 0.245 : 0.16);
-  drawDecoratedInitial(context, locale, copy.careerIntro.slice(0, 1), careerIntroX - (narrow ? 26 : 34), careerIntroY + (narrow ? 15 : 18), narrow ? 28 : 37);
-  context.font = font(locale, narrow ? 8.5 : 10);
-  drawWrapped(context, copy.careerIntro.slice(1), careerIntroX, careerIntroY, width * (narrow ? 0.55 : 0.25), narrow ? 14 : 16.5, {
-    maxLines: narrow ? 3 : 4,
-    color: "rgba(53,31,20,.57)",
+  drawChapterHeader(context, width, height, locale, "career", content.navigation.career, content.sections.careerTitle, {
+    titleY: narrow ? 0.205 : 0.215,
+    titleSize: narrow ? 23 : 35,
   });
+  drawChapterIntro(
+    context,
+    locale,
+    content.sections.careerIntro,
+    width * (narrow ? 0.29 : 0.59),
+    height * (narrow ? 0.245 : 0.16),
+    width * (narrow ? 0.55 : 0.25),
+    narrow,
+    narrow ? 3 : 4,
+  );
 
   context.save();
-  context.strokeStyle = "rgba(61,34,20,.24)";
+  context.strokeStyle = "rgba(61,34,20,.28)";
   context.lineWidth = 0.9;
   context.beginPath();
   positions.forEach((position, index) => {
@@ -1462,13 +1556,13 @@ function drawCareer(
     const entryX = width * position.x;
     const branchEnd = position.side < 0 ? entryX + width * position.width + 5 : entryX - 7;
     context.save();
-    context.strokeStyle = "rgba(61,34,20,.2)";
+    context.strokeStyle = "rgba(61,34,20,.24)";
     context.lineWidth = 0.65;
     context.beginPath();
     context.moveTo(stemX, stemY);
     context.quadraticCurveTo((stemX + branchEnd) / 2, stemY + (index % 2 ? 8 : -7), branchEnd, stemY + 4);
     context.stroke();
-    context.fillStyle = index === 0 ? "rgba(102,42,31,.63)" : "rgba(50,29,18,.48)";
+    context.fillStyle = index === 0 ? "rgba(102,42,31,.68)" : "rgba(50,29,18,.52)";
     context.beginPath();
     context.arc(stemX, stemY, index === 0 ? 3 : 2, 0, Math.PI * 2);
     context.fill();
@@ -1478,102 +1572,181 @@ function drawCareer(
     context.translate(entryX, height * position.y);
     context.rotate(position.angle);
     const entryWidth = width * position.width;
-    context.font = referenceFont(narrow ? 7.6 : 8.2, 400, true);
-    drawInkLine(context, item.period, 0, 0, { alpha: 0.48, family: "reference" });
+    context.font = referenceFont(narrow ? 8 : 8.6, 400, true);
+    drawInkLine(context, item.period, 0, 0, { alpha: 0.62, family: "reference" });
     context.font = font(locale, narrow ? 12.2 : 14.2);
-    drawInkLine(context, item.company, 0, narrow ? 17 : 19, { maxWidth: entryWidth, alpha: 0.91, pressure: 0.7 });
-    context.font = referenceFont(narrow ? 7.7 : 8.4, 400, true);
+    drawInkLine(context, item.company, 0, narrow ? 17 : 19, { maxWidth: entryWidth, alpha: 0.92, pressure: 0.7 });
+    if (item.project) {
+      // A project lead is labelled as such instead of reading as an employer.
+      const companyWidth = context.measureText(item.company).width;
+      context.font = referenceFont(narrow ? 7.4 : 8, 400, true);
+      drawInkLine(context, `· ${content.labels.project.toLocaleUpperCase()}`, companyWidth + 7, narrow ? 17 : 19, {
+        alpha: 0.7,
+        color: AWAKENED_INK,
+        family: "reference",
+      });
+    }
+    context.font = referenceFont(narrow ? 8 : 8.6, 400, true);
     drawInkLine(context, item.role, entryWidth, narrow ? 30 : 32, {
       align: "right",
       maxWidth: entryWidth,
-      alpha: 0.5,
+      alpha: 0.62,
       family: "reference",
     });
-    context.font = font(locale, narrow ? 8.6 : 9.3);
-    const summaryEnd = drawWrapped(context, item.summary, 0, narrow ? 45 : 48, entryWidth, narrow ? 13.4 : 14.5, {
+    context.font = font(locale, narrow ? 8.8 : 9.5);
+    const summaryEnd = drawWrapped(context, item.summary, 0, narrow ? 45 : 48, entryWidth, narrow ? 13.6 : 14.6, {
       maxLines: 2,
       color: INK_SOFT,
     });
     if (!narrow) {
-      context.font = font(locale, 8.2);
+      context.font = font(locale, 8.6);
       drawWrapped(context, item.details[0], 8, summaryEnd + 1, entryWidth - 8, 13, {
         maxLines: 1,
-        color: "rgba(53,31,20,.53)",
+        color: "rgba(53,31,20,.64)",
       });
     }
-    context.font = referenceFont(narrow ? 6.8 : 7.2, 400, true);
+    context.font = referenceFont(narrow ? 7.4 : 7.8, 400, true);
     drawInkLine(context, item.stack, 0, summaryEnd + (narrow ? 3 : 18), {
       maxWidth: entryWidth,
-      alpha: 0.31,
+      alpha: 0.5,
       family: "reference",
     });
+    // The current role carries the archivist's seal beside its date instead
+    // of a seal floating over another entry.
+    if (index === 0 && !narrow) {
+      drawArchivistSeal(context, locale, entryWidth - 16, -6, 15, locale === "ja" ? "現" : "NOW", true);
+    }
     context.restore();
   });
-  if (!narrow) drawArchivistSeal(context, locale, width * 0.79, height * 0.79, 30, locale === "ja" ? "現" : "NOW", true);
   context.restore();
 }
 
-function actionSpots(active: number, width: number): ActionSpot[] {
+/** Positions of each product entry on the products folio, as stage fractions. */
+function productSlots(width: number) {
   const narrow = width < 700;
-  if (active === 3) {
-    return [
-      {
-        label: "Restrict Language website",
-        href: "https://ischca.github.io/restrict_lang/",
-        x: narrow ? 0.18 : 0.68,
-        y: narrow ? 0.54 : 0.31,
-        width: narrow ? 0.27 : 0.12,
-        height: 0.055,
-      },
-      {
-        label: "Restrict Language GitHub",
-        href: "https://github.com/Ischca/restrict_lang",
-        x: narrow ? 0.5 : 0.72,
-        y: narrow ? 0.54 : 0.39,
-        width: narrow ? 0.22 : 0.095,
-        height: 0.055,
-      },
-      {
-        label: "PrismDiff website",
-        href: "https://ischca.github.io/prismdiff/",
-        x: narrow ? 0.31 : 0.12,
-        y: narrow ? 0.82 : 0.67,
-        width: narrow ? 0.27 : 0.12,
-        height: 0.055,
-      },
-      {
-        label: "PrismDiff GitHub",
-        href: "https://github.com/Ischca/prismdiff",
-        x: narrow ? 0.61 : 0.16,
-        y: narrow ? 0.82 : 0.75,
-        width: narrow ? 0.22 : 0.095,
-        height: 0.055,
-      },
-    ];
+  return narrow
+    ? [0.315, 0.47, 0.625, 0.78].map((y, index) => ({ x: 0.17, y, width: 0.68, angle: index % 2 ? 0.006 : -0.006 }))
+    : [
+        { x: 0.16, y: 0.345, width: 0.3, angle: -0.007 },
+        { x: 0.57, y: 0.345, width: 0.3, angle: 0.006 },
+        { x: 0.16, y: 0.64, width: 0.3, angle: 0.005 },
+        { x: 0.57, y: 0.64, width: 0.3, angle: -0.006 },
+      ];
+}
+
+/** Baseline offsets inside a product entry, shared by the canvas and its links. */
+function productMetrics(narrow: boolean) {
+  return narrow
+    ? { name: 20, rule: 27, tagline: 41, taglineLines: 2, leading: 14, highlight: 0, stack: 71, links: 79 }
+    : { name: 26, rule: 34, tagline: 53, taglineLines: 3, leading: 16.5, highlight: 106, stack: 144, links: 153 };
+}
+
+function productLinkRows(content: SiteContent, width: number, height: number): ProductLinkRow[] {
+  const narrow = width < 700;
+  const metrics = productMetrics(narrow);
+  return productSlots(width).slice(0, content.products.length).map((slot, index) => ({
+    product: content.products[index].name,
+    links: content.products[index].links,
+    x: slot.x,
+    y: slot.y + metrics.links / Math.max(1, height),
+  }));
+}
+
+function contactSpots(width: number): ActionSpot[] {
+  const narrow = width < 700;
+  const positions = narrow
+    ? [
+        [0.18, 0.62],
+        [0.53, 0.68],
+        [0.2, 0.76],
+        [0.57, 0.82],
+      ]
+    : [
+        [0.17, 0.68],
+        [0.36, 0.76],
+        [0.62, 0.72],
+        [0.79, 0.64],
+      ];
+  return SOCIAL_LINKS.slice(0, positions.length).map((link, index) => ({
+    ...link,
+    x: positions[index][0],
+    y: positions[index][1],
+    width: narrow ? 0.26 : 0.12,
+    height: 0.065,
+  }));
+}
+
+function drawProductEmblem(
+  context: CanvasRenderingContext2D,
+  emblem: ProductEmblem,
+  x: number,
+  y: number,
+  radius: number,
+) {
+  const r = radius;
+  context.save();
+  context.translate(x, y);
+  context.rotate(-0.04);
+  context.strokeStyle = "rgba(102, 42, 31, .6)";
+  context.fillStyle = "rgba(102, 42, 31, .55)";
+  context.lineWidth = 0.95;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.beginPath();
+  if (emblem === "lens") {
+    // A capture reticle: the spot a tester marks on a real device.
+    context.arc(0, 0, r * 0.62, 0, Math.PI * 2);
+    context.moveTo(0, -r);
+    context.lineTo(0, -r * 0.4);
+    context.moveTo(0, r * 0.4);
+    context.lineTo(0, r);
+    context.moveTo(-r, 0);
+    context.lineTo(-r * 0.4, 0);
+    context.moveTo(r * 0.4, 0);
+    context.lineTo(r, 0);
+    context.stroke();
+    context.beginPath();
+    context.arc(0, 0, r * 0.13, 0, Math.PI * 2);
+    context.fill();
+  } else if (emblem === "quill") {
+    // A quill above the line it has written.
+    context.moveTo(r * 0.78, -r * 0.95);
+    context.bezierCurveTo(-r * 0.08, -r * 0.72, -r * 0.55, -r * 0.08, -r * 0.62, r * 0.66);
+    context.moveTo(r * 0.78, -r * 0.95);
+    context.bezierCurveTo(r * 0.6, -r * 0.18, r * 0.05, r * 0.28, -r * 0.48, r * 0.4);
+    context.moveTo(-r, r * 0.92);
+    context.bezierCurveTo(-r * 0.3, r * 0.84, r * 0.3, r * 0.98, r, r * 0.9);
+    context.stroke();
+  } else if (emblem === "prism") {
+    // One beam entering a prism and leaving as separated changes.
+    context.moveTo(0, -r * 0.74);
+    context.lineTo(r * 0.68, r * 0.55);
+    context.lineTo(-r * 0.68, r * 0.55);
+    context.closePath();
+    context.moveTo(-r * 1.05, r * 0.14);
+    context.lineTo(-r * 0.31, -r * 0.02);
+    context.moveTo(r * 0.33, 0);
+    context.lineTo(r * 1.05, -r * 0.36);
+    context.moveTo(r * 0.36, r * 0.08);
+    context.lineTo(r * 1.06, r * 0.06);
+    context.moveTo(r * 0.38, r * 0.16);
+    context.lineTo(r * 1.02, r * 0.46);
+    context.stroke();
+  } else {
+    // A value flowing forward into the operations that consume it.
+    context.moveTo(-r, r * 0.3);
+    context.bezierCurveTo(-r * 0.55, r * 0.28, -r * 0.35, -r * 0.05, 0, -r * 0.05);
+    context.bezierCurveTo(r * 0.35, -r * 0.05, r * 0.5, -r * 0.6, r, -r * 0.6);
+    context.moveTo(0, -r * 0.05);
+    context.bezierCurveTo(r * 0.35, -r * 0.02, r * 0.55, r * 0.55, r, r * 0.55);
+    context.stroke();
+    [[-r, r * 0.3], [r, -r * 0.6], [r, r * 0.55]].forEach(([px, py]) => {
+      context.beginPath();
+      context.arc(px, py, 1.6, 0, Math.PI * 2);
+      context.fill();
+    });
   }
-  if (active === 4) {
-    const positions = narrow
-      ? [
-          [0.18, 0.62],
-          [0.53, 0.68],
-          [0.2, 0.76],
-          [0.57, 0.82],
-        ]
-      : [
-          [0.17, 0.68],
-          [0.36, 0.76],
-          [0.62, 0.72],
-          [0.79, 0.64],
-        ];
-    return SOCIAL_LINKS.map((link, index) => ({
-      ...link,
-      x: positions[index][0],
-      y: positions[index][1],
-      width: narrow ? 0.26 : 0.12,
-      height: 0.065,
-    }));
-  }
-  return [];
+  context.restore();
 }
 
 function drawProducts(
@@ -1585,118 +1758,80 @@ function drawProducts(
 ) {
   const narrow = width < 700;
   const copy = COPY[locale];
-  const layouts = narrow
-    ? [
-        { x: 0.16, y: 0.31, width: 0.62, diagramX: 0.72, diagramY: 0.37, radius: width * 0.13, angle: -0.018 },
-        { x: 0.29, y: 0.63, width: 0.57, diagramX: 0.2, diagramY: 0.7, radius: width * 0.13, angle: 0.02 },
-      ]
-    : [
-        { x: 0.34, y: 0.31, width: 0.29, diagramX: 0.22, diagramY: 0.41, radius: Math.min(width, height) * 0.14, angle: -0.018 },
-        { x: 0.52, y: 0.59, width: 0.31, diagramX: 0.75, diagramY: 0.65, radius: Math.min(width, height) * 0.145, angle: 0.02 },
-      ];
-  const spots = actionSpots(3, width);
+  const metrics = productMetrics(narrow);
 
   context.save();
-  context.font = referenceFont(narrow ? 9 : 10, 400, true);
-  drawInkLine(context, `04 · ${copy.products.toLocaleUpperCase()}`, width * (narrow ? 0.16 : 0.6), height * 0.14, { alpha: 0.44, family: "reference" });
-  const productsHeading = [copy.productsTitle];
-  drawRoughHeading(
-    context,
-    productsHeading,
-    width * (narrow ? 0.16 : 0.57),
-    height * (narrow ? 0.205 : 0.19),
-    narrow ? 22.5 : 32,
-    locale,
-    narrow ? 28 : 36,
-    width * (narrow ? 0.68 : 0.34),
-  );
-  const productsIntroX = width * (narrow ? 0.26 : 0.14);
-  const productsIntroY = height * (narrow ? 0.245 : 0.16);
-  drawDecoratedInitial(context, locale, copy.productsIntro.slice(0, 1), productsIntroX - (narrow ? 26 : 34), productsIntroY + (narrow ? 15 : 19), narrow ? 28 : 38);
-  context.font = font(locale, narrow ? 8.6 : 10.1);
-  drawWrapped(context, copy.productsIntro.slice(1), productsIntroX, productsIntroY, width * (narrow ? 0.57 : 0.27), narrow ? 14 : 17, {
-    maxLines: narrow ? 3 : 4,
-    color: "rgba(53,31,20,.57)",
+  drawChapterHeader(context, width, height, locale, "products", content.navigation.products, content.sections.productsTitle, {
+    titleY: narrow ? 0.205 : 0.2,
+    titleSize: narrow ? 23 : 34,
   });
+  drawChapterIntro(
+    context,
+    locale,
+    content.sections.productsIntro,
+    width * (narrow ? 0.27 : 0.62),
+    height * (narrow ? 0.245 : 0.16),
+    width * (narrow ? 0.56 : 0.24),
+    narrow,
+    2,
+  );
 
-  content.products.slice(0, 2).forEach((product, index) => {
-    const layout = layouts[index];
-    const cx = width * layout.diagramX;
-    const cy = height * layout.diagramY;
+  productSlots(width).slice(0, content.products.length).forEach((slot, index) => {
+    const product = content.products[index];
+    const entryWidth = width * slot.width;
     context.save();
-    context.translate(cx, cy);
-    context.rotate(layout.angle);
-    context.strokeStyle = "rgba(55,31,18,.22)";
-    context.lineWidth = 0.82;
-    context.setLineDash([1, 5]);
-    if (index === 0) {
-      context.beginPath();
-      context.moveTo(-layout.radius, layout.radius * 0.21);
-      context.bezierCurveTo(-layout.radius * 0.65, -layout.radius * 0.22, -layout.radius * 0.35, layout.radius * 0.17, -layout.radius * 0.1, 0);
-      context.bezierCurveTo(layout.radius * 0.16, -layout.radius * 0.2, layout.radius * 0.41, -layout.radius * 0.52, layout.radius * 0.93, -layout.radius * 0.39);
-      context.moveTo(-layout.radius * 0.1, 0);
-      context.bezierCurveTo(layout.radius * 0.14, layout.radius * 0.04, layout.radius * 0.46, layout.radius * 0.35, layout.radius, layout.radius * 0.26);
-      context.stroke();
-      [[-0.96,0.18],[-0.12,0],[0.86,-0.39],[0.94,0.26]].forEach(([mx, my], mark) => {
-        context.fillStyle = `rgba(50,28,17,${0.27 + mark * 0.035})`;
-        context.beginPath();
-        context.arc(layout.radius * mx, layout.radius * my, 1.3 + mark * 0.24, 0, Math.PI * 2);
-        context.fill();
-      });
-    } else {
-      context.beginPath();
-      context.moveTo(-layout.radius * 0.95, -layout.radius * 0.31);
-      context.bezierCurveTo(-layout.radius * 0.7, -layout.radius * 0.28, -layout.radius * 0.52, -layout.radius * 0.16, -layout.radius * 0.27, -layout.radius * 0.08);
-      context.moveTo(-layout.radius, layout.radius * 0.31);
-      context.bezierCurveTo(-layout.radius * 0.71, layout.radius * 0.3, -layout.radius * 0.5, layout.radius * 0.17, -layout.radius * 0.27, layout.radius * 0.08);
-      context.moveTo(-layout.radius * 0.28, -layout.radius * 0.51);
-      context.lineTo(layout.radius * 0.3, 0);
-      context.lineTo(-layout.radius * 0.28, layout.radius * 0.51);
-      context.closePath();
-      context.moveTo(layout.radius * 0.3, 0);
-      context.bezierCurveTo(layout.radius * 0.51, -layout.radius * 0.11, layout.radius * 0.68, -layout.radius * 0.32, layout.radius * 0.96, -layout.radius * 0.35);
-      context.moveTo(layout.radius * 0.3, 0);
-      context.bezierCurveTo(layout.radius * 0.57, layout.radius * 0.02, layout.radius * 0.72, layout.radius * 0.2, layout.radius * 0.91, layout.radius * 0.27);
-      context.stroke();
-    }
-    context.setLineDash([]);
-    context.restore();
+    context.translate(width * slot.x, height * slot.y);
+    context.rotate(slot.angle);
+    drawProductEmblem(context, product.emblem, narrow ? -24 : -34, narrow ? 12 : 16, narrow ? 10 : 14);
 
-    context.save();
-    context.translate(width * layout.x, height * layout.y);
-    context.rotate(layout.angle);
-    const textWidth = width * layout.width;
-    context.font = referenceFont(narrow ? 7.5 : 8.2, 400, true);
-    drawInkLine(context, `PRODUCT ${index === 0 ? "A" : "B"} · ${product.kind}`, 0, 0, { alpha: 0.43, maxWidth: textWidth, family: "reference" });
-    context.font = font(locale, narrow ? 17 : 23);
-    drawInkLine(context, product.name, 0, narrow ? 22 : 27, { alpha: 0.94, maxWidth: textWidth, pressure: 0.74 });
-    context.font = font(locale, narrow ? 8.9 : 10.2);
-    const descriptionEnd = drawWrapped(context, product.description, 0, narrow ? 43 : 52, textWidth, narrow ? 14.5 : 16.5, {
-      maxLines: narrow ? 3 : 4,
+    context.font = referenceFont(narrow ? 8 : 8.8, 400, true);
+    drawInkLine(context, `${ROMAN[index]} · ${product.kind}`, 0, 0, {
+      alpha: 0.62,
+      maxWidth: entryWidth,
+      family: "reference",
+    });
+    context.font = displayFont(narrow ? 18 : 23);
+    drawInkLine(context, product.name, 0, metrics.name, {
+      alpha: 0.94,
+      maxWidth: entryWidth * 0.62,
+      pressure: 0.74,
+      family: "display",
+    });
+    context.font = referenceFont(narrow ? 7.8 : 8.6, 400, true);
+    drawInkLine(context, product.status, entryWidth, metrics.name, {
+      align: "right",
+      alpha: 0.78,
+      color: AWAKENED_INK,
+      maxWidth: entryWidth * 0.38,
+      family: "reference",
+    });
+    drawLooseRule(context, 0, metrics.rule, entryWidth * 0.92, 311 + index * 23, 0.2);
+
+    context.font = font(locale, narrow ? 9.4 : 10.4);
+    drawWrapped(context, product.tagline, 0, metrics.tagline, entryWidth, metrics.leading, {
+      maxLines: metrics.taglineLines,
       color: INK_SOFT,
     });
-    context.font = referenceFont(narrow ? 7 : 7.7, 400, true);
-    drawInkLine(context, copy.purpose.toLocaleUpperCase(), 0, descriptionEnd + 3, { alpha: 0.38, family: "reference" });
-    context.font = font(locale, narrow ? 8.4 : 9.2);
-    const purposeEnd = drawWrapped(context, product.purpose, 0, descriptionEnd + (narrow ? 16 : 18), textWidth, narrow ? 13.5 : 15, {
-      maxLines: 2,
-      color: "rgba(53,31,20,.58)",
+    if (!narrow && product.highlights[0]) {
+      context.save();
+      context.fillStyle = "rgba(102, 42, 31, .55)";
+      context.translate(3, metrics.highlight - 3.6);
+      context.rotate(Math.PI / 4);
+      context.fillRect(-1.8, -1.8, 3.6, 3.6);
+      context.restore();
+      context.font = font(locale, 9.4);
+      drawWrapped(context, product.highlights[0], 12, metrics.highlight, entryWidth - 12, 14.5, {
+        maxLines: 2,
+        color: "rgba(53,31,20,.66)",
+      });
+    }
+    context.font = referenceFont(narrow ? 7.8 : 8.4, 400, true);
+    drawInkLine(context, `${copy.tools.toLocaleUpperCase()} · ${product.stack.join(" / ")}`, 0, metrics.stack, {
+      alpha: 0.58,
+      maxWidth: entryWidth,
+      family: "reference",
     });
-    context.font = referenceFont(narrow ? 6.8 : 7.4, 400, true);
-    drawInkLine(context, product.stack, 0, purposeEnd + 2, { alpha: 0.34, maxWidth: textWidth, family: "reference" });
     context.restore();
-  });
-
-  context.font = referenceFont(narrow ? 9 : 10, 400, true);
-  spots.forEach((spot, index) => {
-    const isWebsite = index % 2 === 0;
-    drawInkLine(
-      context,
-      isWebsite ? content.labels.website : "GitHub",
-      width * (spot.x + spot.width / 2),
-      height * (spot.y + spot.height * 0.68),
-      { align: "center", alpha: 0.64, family: "reference" },
-    );
   });
   context.restore();
 }
@@ -1710,22 +1845,24 @@ function drawContact(
 ) {
   const narrow = width < 700;
   const copy = COPY[locale];
-  const spots = actionSpots(4, width);
+  const spots = contactSpots(width);
+  const letter = content.sections.contactLetter;
   context.save();
-  context.font = referenceFont(narrow ? 9 : 10, 400, true);
-  drawInkLine(context, `05 · ${copy.contact.toLocaleUpperCase()}`, width * (narrow ? 0.16 : 0.13), height * 0.14, { alpha: 0.44, family: "reference" });
-  drawRoughHeading(context, [copy.contactTitle], width * (narrow ? 0.16 : 0.145), height * (narrow ? 0.205 : 0.215), narrow ? 23 : 35, locale);
+  drawChapterHeader(context, width, height, locale, "contact", content.navigation.contact, content.sections.contactTitle, {
+    titleY: narrow ? 0.205 : 0.215,
+    titleSize: narrow ? 23 : 35,
+  });
 
   context.save();
   context.translate(width * (narrow ? 0.21 : 0.23), height * (narrow ? 0.34 : 0.36));
   context.rotate(-0.012);
-  drawDecoratedInitial(context, locale, copy.letterOpening.slice(0, 1), narrow ? -28 : -38, narrow ? 17 : 21, narrow ? 30 : 42);
+  drawDecoratedInitial(context, locale, letter.slice(0, 1), narrow ? -28 : -38, narrow ? 17 : 21, narrow ? 30 : 42);
   context.font = font(locale, narrow ? 11.5 : 14);
-  const openingEnd = drawWrapped(context, copy.letterOpening.slice(1), 0, 0, width * (narrow ? 0.63 : 0.47), narrow ? 20 : 23, {
-    maxLines: narrow ? 4 : 3,
+  const openingEnd = drawWrapped(context, letter.slice(1), 0, 0, width * (narrow ? 0.63 : 0.45), narrow ? 20 : 23, {
+    maxLines: narrow ? 5 : 3,
     color: INK_SOFT,
   });
-  context.font = font(locale, narrow ? 9.2 : 10.5);
+  context.font = font(locale, narrow ? 9.4 : 10.6);
   drawWrapped(
     context,
     `${content.hero.focusValue} · ${content.hero.communicationValue}`,
@@ -1733,19 +1870,19 @@ function drawContact(
     openingEnd + (narrow ? 16 : 21),
     width * (narrow ? 0.55 : 0.37),
     narrow ? 16 : 18,
-    { maxLines: 3, color: "rgba(53,31,20,.55)" },
+    { maxLines: 3, color: "rgba(53,31,20,.64)" },
   );
   context.font = handFont(locale, narrow ? 15 : 19);
-  drawInkLine(context, copy.signature, width * (narrow ? 0.38 : 0.39), openingEnd + (narrow ? 78 : 82), {
-    alpha: 0.74,
+  drawInkLine(context, copy.signature, width * (narrow ? 0.38 : 0.39), openingEnd + (narrow ? 72 : 80), {
+    alpha: 0.78,
     align: "center",
   });
   context.restore();
 
-  drawArchivistSeal(context, locale, width * (narrow ? 0.73 : 0.75), height * (narrow ? 0.46 : 0.43), narrow ? 38 : 55, "I", true);
-  context.font = referenceFont(narrow ? 7.2 : 8, 400, true);
-  drawInkLine(context, "PROFILES & CONTACT", width * (narrow ? 0.17 : 0.14), height * (narrow ? 0.57 : 0.61), {
-    alpha: 0.34,
+  drawArchivistSeal(context, locale, width * (narrow ? 0.76 : 0.76), height * (narrow ? 0.5 : 0.43), narrow ? 34 : 55, "I", true);
+  context.font = referenceFont(narrow ? 7.6 : 8.4, 400, true);
+  drawInkLine(context, "PROFILES & CONTACT", width * (narrow ? 0.17 : 0.14), height * (narrow ? 0.575 : 0.61), {
+    alpha: 0.5,
     family: "reference",
   });
 
@@ -1753,14 +1890,14 @@ function drawContact(
     const angle = narrow ? (index % 2 === 0 ? -0.035 : 0.03) : (index - 1.5) * 0.025;
     const centerX = width * (spot.x + spot.width / 2);
     const centerY = height * (spot.y + spot.height * 0.5);
-    drawArchivistSeal(context, locale, centerX, centerY, narrow ? 23 : 27, ["GH", "in", "U", "X"][index]);
+    drawArchivistSeal(context, locale, centerX, centerY, narrow ? 23 : 27, ["GH", "in", "U", "X"][index] ?? "·");
     context.save();
     context.translate(centerX, centerY + (narrow ? 35 : 41));
     context.rotate(angle);
     context.font = font(locale, narrow ? 11.5 : 14);
-    drawInkLine(context, SOCIAL_LINKS[index].label, 0, 0, { align: "center", alpha: 0.9 });
-    context.font = referenceFont(narrow ? 6.8 : 7.5, 400, true);
-    drawInkLine(context, locale === "ja" ? "リンクを開く" : "open link", 0, narrow ? 14 : 16, { align: "center", alpha: 0.35, family: "reference" });
+    drawInkLine(context, spot.label, 0, 0, { align: "center", alpha: 0.9 });
+    context.font = referenceFont(narrow ? 7.4 : 8, 400, true);
+    drawInkLine(context, locale === "ja" ? "リンクを開く" : "open link", 0, narrow ? 14 : 16, { align: "center", alpha: 0.5, family: "reference" });
     context.restore();
   });
   context.restore();
@@ -1780,10 +1917,11 @@ function drawChapter(
   const drift = (1 - phase) * 3.5;
   context.translate(drift, -drift * 0.28);
   context.filter = phase < 0.98 ? `blur(${(1 - phase) * 0.8}px)` : "none";
-  if (active === 1) drawWork(context, width, height, content, locale);
-  else if (active === 2) drawCareer(context, width, height, content, locale);
-  else if (active === 3) drawProducts(context, width, height, content, locale);
-  else if (active === 4) drawContact(context, width, height, content, locale);
+  const view = VIEW_IDS[active] ?? "home";
+  if (view === "products") drawProducts(context, width, height, content, locale);
+  else if (view === "work") drawWork(context, width, height, content, locale);
+  else if (view === "career") drawCareer(context, width, height, content, locale);
+  else if (view === "contact") drawContact(context, width, height, content, locale);
   else drawHome(context, width, height, content, locale);
   context.restore();
 }
@@ -2936,6 +3074,7 @@ function paintScene(
       glyphContext.drawImage(textCanvas, 0, 0);
     }
     inkContext.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
+    drawPendingInk(inkContext, textRenderer.pendingRuns);
     absorbPalimpsestInk(inkContext, state.palimpsest.progress, inkSurface.absorption, inkSurface.capillary);
     state.ritualStrokes.forEach((stroke) => drawInkStroke(inkContext, stroke));
     drawInkStroke(inkContext, state.points);
@@ -3047,14 +3186,35 @@ function gestureName(points: InkPoint[]) {
   return "VESTIGIUM";
 }
 
+function chapterLabel(view: ViewId, content: SiteContent, locale: Locale) {
+  return view === "home" ? COPY[locale].home : content.navigation[view];
+}
+
 function ScreenReaderChapter({ active, content, locale }: { active: number; content: SiteContent; locale: Locale }) {
-  const view = VIEW_IDS[active];
+  const view = VIEW_IDS[active] ?? "home";
   const copy = COPY[locale];
+  if (view === "products") {
+    return (
+      <>
+        <h2>{content.sections.productsTitle}</h2>
+        <p>{content.sections.productsIntro}</p>
+        {content.products.map((item) => (
+          <article key={item.id}>
+            <h3>{item.name}</h3>
+            <p>{item.kind} · {item.status}</p>
+            <p>{item.tagline}</p>
+            <ul>{item.highlights.map((highlight) => <li key={highlight}>{highlight}</li>)}</ul>
+            <p>{copy.tools}: {item.stack.join(", ")}</p>
+          </article>
+        ))}
+      </>
+    );
+  }
   if (view === "work") {
     return (
       <>
-        <h2>{copy.workTitle}</h2>
-        <p>{copy.commissionIntro}</p>
+        <h2>{content.sections.workTitle}</h2>
+        <p>{content.sections.workIntro}</p>
         {content.work.map((item) => <article key={item.title}><h3>{item.title}</h3><p>{item.summary}</p><dl><dt>{copy.fit}</dt><dd>{item.fit}</dd><dt>{copy.scope}</dt><dd>{item.scope}</dd><dt>{copy.outcome}</dt><dd>{item.outcome}</dd><dt>{copy.tools}</dt><dd>{item.stack}</dd></dl></article>)}
       </>
     );
@@ -3062,23 +3222,24 @@ function ScreenReaderChapter({ active, content, locale }: { active: number; cont
   if (view === "career") {
     return (
       <>
-        <h2>{copy.careerTitle}</h2>
-        <p>{copy.careerIntro}</p>
-        {content.career.map((item) => <article key={`${item.company}-${item.period}`}><h3>{item.company}</h3><p>{item.period} — {item.role}</p><p>{item.summary}</p><ul>{item.details.map((detail) => <li key={detail}>{detail}</li>)}</ul><p>{item.stack}</p></article>)}
+        <h2>{content.sections.careerTitle}</h2>
+        <p>{content.sections.careerIntro}</p>
+        {content.career.map((item) => <article key={`${item.company}-${item.period}`}><h3>{item.company}{item.project ? ` (${content.labels.project})` : ""}</h3><p>{item.period} — {item.role}</p><p>{item.summary}</p><ul>{item.details.map((detail) => <li key={detail}>{detail}</li>)}</ul><p>{item.stack}</p></article>)}
       </>
     );
   }
-  if (view === "products") {
-    return (
-      <>
-        <h2>{copy.productsTitle}</h2>
-        <p>{copy.productsIntro}</p>
-        {content.products.map((item) => <article key={item.name}><h3>{item.name}</h3><p>{item.kind}</p><p>{item.description}</p><p>{copy.purpose}: {item.purpose}</p><p>{item.stack}</p><p><a href={item.website}>{content.labels.website}</a> · <a href={item.github}>GitHub</a></p></article>)}
-      </>
-    );
-  }
-  if (view === "contact") return <><h2>{copy.contactTitle}</h2><p>{copy.letterOpening}</p><ul>{SOCIAL_LINKS.map((link) => <li key={link.href}><a href={link.href}>{link.label}</a></li>)}</ul></>;
-  return <><h2>{copy.home}</h2><p>{copy.homeCopy}</p><p>{content.hero.introduction}</p><p>{copy.maxim}</p></>;
+  if (view === "contact") return <><h2>{content.sections.contactTitle}</h2><p>{content.sections.contactLetter}</p><ul>{SOCIAL_LINKS.map((link) => <li key={link.href}><a href={link.href}>{link.label}</a></li>)}</ul></>;
+  return (
+    <>
+      <h2>Ischca</h2>
+      <p>{content.hero.lead}</p>
+      <p>{content.hero.introduction}</p>
+      <h3>{copy.catalog}</h3>
+      <ul>{content.products.map((item) => <li key={item.id}>{item.name} — {item.kind}</li>)}</ul>
+      <h3>{copy.craft}</h3>
+      <p>{content.hero.craft}</p>
+    </>
+  );
 }
 
 const STYLES = `
@@ -3811,6 +3972,71 @@ const STYLES = `
     outline: 1px solid rgba(96, 40, 27, .72);
     outline-offset: 6px;
   }
+  .canvas-grimoire-profile {
+    position: absolute;
+    z-index: 4;
+    top: clamp(18px, 3.8svh, 34px);
+    left: clamp(24px, 4.2vw, 62px);
+    color: rgba(91, 45, 36, .82);
+    font-family: "Ischca IM Fell English SC", "Ischca Noto Serif JP", Georgia, serif;
+    font-size: clamp(.72rem, 1.2vw, .9rem);
+    letter-spacing: .12em;
+    line-height: 1;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: color 180ms ease, text-shadow 180ms ease;
+  }
+  .canvas-grimoire-profile:hover,
+  .canvas-grimoire-profile:focus-visible {
+    color: rgba(60, 26, 18, 1);
+    text-shadow: 0 1px rgba(255, 252, 242, .45);
+  }
+  .canvas-grimoire-profile:focus-visible {
+    outline: 1px solid rgba(96, 40, 27, .72);
+    outline-offset: 6px;
+  }
+  .canvas-grimoire-product-links {
+    position: absolute;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 18px;
+    margin: 0;
+    pointer-events: none;
+    animation: canvas-grimoire-ink-in 900ms ease 260ms backwards;
+    transition: opacity 420ms ease 120ms, visibility 0s linear 0s;
+  }
+  .canvas-grimoire-stage[data-ink-motion="moving"] .canvas-grimoire-product-links {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 140ms ease, visibility 0s linear 140ms;
+  }
+  .canvas-grimoire-product-link {
+    padding: 7px 0;
+    pointer-events: auto;
+    color: rgba(91, 45, 36, .88);
+    font-family: "Ischca IM Fell English SC", "Ischca Noto Serif JP", Georgia, serif;
+    font-size: clamp(.74rem, 1.05vw, .86rem);
+    letter-spacing: .08em;
+    line-height: 1;
+    text-decoration: underline;
+    text-decoration-color: rgba(91, 45, 36, .32);
+    text-decoration-thickness: 1px;
+    text-underline-offset: .3em;
+    transition: color 160ms ease, text-decoration-color 160ms ease;
+  }
+  .canvas-grimoire-product-link:hover,
+  .canvas-grimoire-product-link:focus-visible {
+    color: rgba(60, 26, 18, 1);
+    text-decoration-color: currentColor;
+  }
+  .canvas-grimoire-product-link:focus-visible {
+    outline: 1px solid rgba(96, 40, 27, .72);
+    outline-offset: 3px;
+  }
+  @keyframes canvas-grimoire-ink-in {
+    from { opacity: 0; filter: blur(1.4px); }
+    to { opacity: 1; filter: none; }
+  }
   .canvas-grimoire-actions {
     position: absolute;
     inset: 0;
@@ -3862,6 +4088,15 @@ const STYLES = `
       top: 20px;
       right: 24px;
       font-size: .7rem;
+    }
+    .canvas-grimoire-profile {
+      top: 20px;
+      left: 24px;
+      font-size: .7rem;
+    }
+    .canvas-grimoire-product-link {
+      padding: 8px 0;
+      font-size: .74rem;
     }
     .verso-hud-header {
       top: 22px;
@@ -3930,6 +4165,7 @@ const STYLES = `
   }
   @media (prefers-reduced-motion: reduce) {
     .canvas-grimoire-action { scroll-behavior: auto; }
+    .canvas-grimoire-product-links { animation: none; }
     .canvas-grimoire-stage[data-verso] .canvas-grimoire-surface,
     .canvas-grimoire-stage[data-verso] .canvas-grimoire-hint,
     .verso-exploded { animation-duration: 1ms !important; }
@@ -3941,6 +4177,8 @@ type CanvasGrimoireExperienceProps = {
   locale: Locale;
   alternateHref: string;
   alternateLabel: string;
+  /** The HTML edition with every product, skill, and role in full. */
+  profileHref: string;
 };
 
 export function CanvasGrimoireExperience({
@@ -3948,6 +4186,7 @@ export function CanvasGrimoireExperience({
   locale,
   alternateHref,
   alternateLabel,
+  profileHref,
 }: CanvasGrimoireExperienceProps) {
   const descriptionId = useId();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -3990,8 +4229,8 @@ export function CanvasGrimoireExperience({
   } | null>(null);
 
   const labels = useMemo(
-    () => [COPY[locale].home, COPY[locale].work, COPY[locale].career, COPY[locale].products, COPY[locale].contact],
-    [locale],
+    () => VIEW_IDS.map((view) => chapterLabel(view, content, locale)),
+    [content, locale],
   );
 
   const paint = useCallback(() => {
@@ -4026,11 +4265,13 @@ export function CanvasGrimoireExperience({
             { url: assetUrl("fonts/YujiSyuku-Portfolio.woff"), weight: 400, family: "manuscript" },
             { url: assetUrl("fonts/NotoSerifJP-Portfolio.woff"), weight: 400, family: "reference" },
             { url: assetUrl("fonts/NotoSerifJP-Portfolio-Semibold.woff"), weight: 600, family: "reference" },
+            { url: assetUrl("fonts/IMFellEnglish-Portfolio.woff"), weight: 400, family: "display" },
           ]
         : [
             { url: assetUrl("fonts/IMFellEnglish-Portfolio.woff"), weight: 400, family: "manuscript" },
             { url: assetUrl("fonts/Fondamento-Portfolio-Italic.woff"), weight: 400, italic: true, family: "manuscript" },
             { url: assetUrl("fonts/IMFellEnglishSC-Portfolio.woff"), weight: 400, family: "reference" },
+            { url: assetUrl("fonts/IMFellEnglish-Portfolio.woff"), weight: 400, family: "display" },
           ],
       maxDevicePixelRatio: 2,
       onInvalidate: schedulePaint,
@@ -4256,6 +4497,7 @@ export function CanvasGrimoireExperience({
     let sectionStart = 0;
     let travel = 1;
     let lastPaintKey = "";
+    let lastInkMotion = "";
     const update = () => {
       frame = null;
       if (needsMeasure) {
@@ -4295,6 +4537,14 @@ export function CanvasGrimoireExperience({
         state.ritual = { stage: "idle", sigil: null, mechanismPhase: 0, guideOpacity: 0 };
         setActive(nextActive);
         setAnnouncement(labels[nextActive]);
+      }
+      // Text links belong to a settled folio. While one chapter's ink drains
+      // and the next bleeds in, they step aside instead of floating over the
+      // other chapter's text.
+      const inkMotion = transitionProgress > 0 ? "moving" : "still";
+      if (inkMotion !== lastInkMotion) {
+        lastInkMotion = inkMotion;
+        stage.dataset.inkMotion = inkMotion;
       }
       const paintKey = `${base}:${to}:${transitionProgress}:${nextActive}`;
       if (paintKey !== lastPaintKey) {
@@ -4611,7 +4861,9 @@ export function CanvasGrimoireExperience({
     }
   };
 
-  const links = actionSpots(active, size.width || 1000);
+  const activeView = VIEW_IDS[active] ?? "home";
+  const contactLinks = activeView === "contact" ? contactSpots(size.width || 1000) : [];
+  const productRows = activeView === "products" ? productLinkRows(content, size.width || 1000, size.height || 800) : [];
 
   return (
     <section
@@ -4650,10 +4902,42 @@ export function CanvasGrimoireExperience({
             {alternateLabel}
           </a>
         )}
+        {versoPhase === "surface" && (
+          <a className="canvas-grimoire-profile" href={profileHref}>
+            {content.labels.readInFull}
+            <span aria-hidden="true"> →</span>
+          </a>
+        )}
 
-        {versoPhase === "surface" && links.length > 0 && (
-          <nav className="canvas-grimoire-actions" aria-label={active === 3 ? content.navigation.products : content.navigation.contact}>
-            {links.map((link) => (
+        {versoPhase === "surface" && productRows.length > 0 && (
+          <nav className="canvas-grimoire-actions" aria-label={content.navigation.products} key={`products-${size.width}`}>
+            {productRows.map((row) => (
+              <p
+                className="canvas-grimoire-product-links"
+                style={{ left: `${row.x * 100}%`, top: `${row.y * 100}%` }}
+                key={row.product}
+              >
+                {row.links.map((link) => (
+                  <a
+                    className="canvas-grimoire-product-link"
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${row.product} — ${link.label}`}
+                    key={link.href}
+                  >
+                    {link.label}
+                    <span aria-hidden="true"> ↗</span>
+                  </a>
+                ))}
+              </p>
+            ))}
+          </nav>
+        )}
+
+        {versoPhase === "surface" && contactLinks.length > 0 && (
+          <nav className="canvas-grimoire-actions" aria-label={content.navigation.contact}>
+            {contactLinks.map((link) => (
               <a
                 className="canvas-grimoire-action"
                 href={link.href}

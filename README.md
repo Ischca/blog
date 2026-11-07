@@ -1,13 +1,36 @@
 # Ischca Portfolio
 
-A bilingual, single-page portfolio for Ischca, presented as a living manuscript.
+A bilingual portfolio for Ischca in two editions:
+
+- `/ja/` and `/en/` — the interactive manuscript ("grimoire"). Its folios are the
+  title page with the catalogue of products, the products, services,
+  experience, and contact.
+- `/ja/profile/` and `/en/profile/` — the full HTML edition with every product,
+  skill, case study, and role. It loads instantly, prints cleanly, and is the
+  page search engines and readers in a hurry should land on.
+
+## Content
+
+All portfolio facts live in `src/content/site.ts`, which both editions read:
+products, skills with where they were used, selected work, career, and the
+public profile links. Update `CONTENT_UPDATED` in the same file when the content
+changes. The grimoire keeps only its interface copy in the component.
+
+Fonts are subset to the characters the site uses. After changing copy, rebuild
+them (see `public/fonts/README.md`):
+
+```sh
+FONTTOOLS_PY=/path/to/python-with-fonttools ./scripts/build-font-subset.sh
+```
 
 ## Stack
 
 - Astro for static output and Japanese/English routing
 - React for the scroll-driven manuscript and drawing interaction
 - Three.js and Troika SDF text for physically integrated ink rendering
-- WebGL and Canvas 2D for parchment relief, ink absorption, and ritual effects
+- WebGL and Canvas 2D for parchment relief, ink absorption, and ritual effects;
+  lines whose SDF glyphs are still being generated are written with Canvas 2D,
+  so a first visit never shows an empty folio
 
 ## Local development
 

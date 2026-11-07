@@ -191,7 +191,7 @@ const LAYERS: readonly LayerDefinition[] = [
       en: "The actual SDF text output produced by Troika. Glyph coverage receives per-run pressure and absorption plus samples from the shared paper relief before entering the ink buffer. PhysicalParchmentRenderer applies depth and final lighting afterward.",
       metrics: [["SDF GLYPH", "128 PX"], ["MAX DPR", "2"], ["FONTS", "LOCAL WOFF"]],
       pipeline: ["Select a local subset font for the run", "Generate and retain Troika SDF meshes", "Modulate coverage with run pressure and paper uptake", "Composite the GPU result into the pigment buffer"],
-      code: ["mesh.gpuAccelerateSDF = true;", "mesh.sdfGlyphSize = 128;", "const textCanvas = textRenderer.renderFrame(gpuText.runs, size, inkSurface.surface);"]
+      code: ["mesh.gpuAccelerateSDF = true;", "mesh.sdfGlyphSize = run.size >= 22 ? 128 : 64;", "const textCanvas = textRenderer.renderFrame(gpuText.runs, size, inkSurface.surface);"]
     },
   },
   {
@@ -282,7 +282,7 @@ const COPY = {
   },
 } as const;
 
-const CHAPTERS = ["PROFILE", "SERVICES", "EXPERIENCE", "PRODUCTS", "CONTACT"];
+const CHAPTERS = ["PROFILE", "PRODUCTS", "SERVICES", "EXPERIENCE", "CONTACT"];
 
 export function VersoExplodedView({
   phase,
