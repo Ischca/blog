@@ -109,7 +109,9 @@ verify_sha256 "$FONDAMENTO_LICENSE_SHA256" "$SOURCE_FONDAMENTO_LICENSE"
 # included in full so code, URLs, and future short labels keep rendering.
 "$FONTTOOLS_PY" - "$CHARACTERS_FILE" \
   "$PROJECT_ROOT/src/content/site.ts" \
-  "$PROJECT_ROOT/src/components/CanvasGrimoireExperience.tsx" <<'PY'
+  "$PROJECT_ROOT/src/components/CanvasGrimoireExperience.tsx" \
+  "$PROJECT_ROOT/src/pages/[lang]/index.astro" \
+  "$PROJECT_ROOT/src/pages/[lang]/profile.astro" <<'PY'
 from pathlib import Path
 import sys
 
