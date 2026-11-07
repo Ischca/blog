@@ -15,7 +15,7 @@ export type PhysicalInkTextAlign = "left" | "center" | "right";
 export type PhysicalInkFontFace = {
   url: string;
   /** Logical role, e.g. a handwritten manuscript face or a reference face. */
-  family?: "manuscript" | "reference";
+  family?: "manuscript" | "reference" | "display";
   weight?: number;
   italic?: boolean;
 };
@@ -37,7 +37,7 @@ export type PhysicalInkTextRun = {
   weight?: number;
   italic?: boolean;
   /** Selects a font role without exposing asset URLs to layout code. */
-  family?: "manuscript" | "reference";
+  family?: "manuscript" | "reference" | "display";
   /** Canvas-compatible clockwise rotation, in radians. */
   rotation?: number;
   /** 0 is a dry kiss, 1 is a deeply pressed nib. */
@@ -49,6 +49,11 @@ export type PhysicalInkTextRun = {
   locale?: "ja" | "en";
   whiteSpace?: "normal" | "nowrap";
   overflowWrap?: "normal" | "break-word";
+  /**
+   * Canvas2D font shorthand for the same run. The caller writes the run with
+   * it while the SDF glyphs are still being generated, so text never vanishes.
+   */
+  font?: string;
 };
 
 export type PhysicalInkFrameSize = {
@@ -85,6 +90,17 @@ type InkMesh = TroikaText & {
     inkUniforms?: InkUniforms;
     inkBaseMaterial?: MeshBasicMaterial;
   };
+};
+
+type InkLayout = {
+  key: string;
+  face: Required<PhysicalInkFontFace>;
+  weight: number;
+  italic: boolean;
+  align: PhysicalInkTextAlign;
+  maxWidth: number;
+  lineHeight: number | "normal";
+  sdfGlyphSize: number;
 };
 
 type Runtime = typeof import("three");
@@ -161,7 +177,7 @@ export class PhysicalInkTextRenderer {
   private reliefSource: CanvasImageSource;
   private reliefWidth: number;
   private reliefHeight: number;
-  private queued = 0;
+  private pending: PhysicalInkTextRun[] = [];
   private frameSerial = 0;
   private width = 1;
   private height = 1;
@@ -333,29 +349,33 @@ export class PhysicalInkTextRenderer {
   }
 
   beginFrame(): void {
-    this.queued = 0;
     this.frameSerial += 1;
+    this.pending = [];
   }
 
   queueText(run: PhysicalInkTextRun): void {
-    if (this.disposed || !run.text || run.alpha === 0 || run.size <= 0) return;
-    const mesh = this.meshes[this.queued] ?? this.createMesh();
-    this.queued += 1;
-    mesh.userData.inkQueuedFrame = this.frameSerial;
-    this.configureMesh(mesh, run);
+    this.queueRuns([run]);
+  }
+
+  /**
+   * Runs queued in the current frame whose SDF glyphs are still being
+   * generated. The caller writes these with Canvas2D until they are ready.
+   */
+  get pendingRuns(): readonly PhysicalInkTextRun[] {
+    return this.pending;
   }
 
   render(): void {
     if (!this.available) return;
-    for (let index = this.queued; index < this.meshes.length; index += 1) {
-      this.meshes[index].visible = false;
-    }
+    this.meshes.forEach((mesh) => {
+      if (mesh.userData.inkQueuedFrame !== this.frameSerial) mesh.visible = false;
+    });
     this.renderer.render(this.scene, this.camera);
   }
 
   draw(runs: readonly PhysicalInkTextRun[]): void {
     this.beginFrame();
-    runs.forEach((run) => this.queueText(run));
+    this.queueRuns(runs);
     this.render();
   }
 
@@ -446,7 +466,6 @@ export class PhysicalInkTextRenderer {
     // baseline anchor to keep the existing manuscript composition intact.
     mesh.anchorY = "top-baseline";
     mesh.gpuAccelerateSDF = true;
-    mesh.sdfGlyphSize = 128;
     mesh.renderOrder = 20;
     this.uniforms.add(uniforms);
     this.meshes.push(mesh);
@@ -454,14 +473,52 @@ export class PhysicalInkTextRenderer {
     return mesh;
   }
 
-  private configureMesh(mesh: InkMesh, run: PhysicalInkTextRun): void {
+  private queueRuns(runs: readonly PhysicalInkTextRun[]): void {
+    if (this.disposed) return;
+    const entries = runs
+      .filter((run) => run.text && run.alpha !== 0 && run.size > 0)
+      .map((run) => ({ run, layout: this.layoutFor(run) }));
+
+    // Meshes are matched by layout rather than by draw order. A chapter change
+    // or palimpsest transition reorders the runs; matching by layout keeps the
+    // finished SDF geometry instead of re-typesetting every line.
+    const idle = new Map<string, InkMesh[]>();
+    this.meshes.forEach((mesh) => {
+      const key = mesh.userData.inkLayoutKey;
+      if (!key || mesh.userData.inkQueuedFrame === this.frameSerial) return;
+      const meshes = idle.get(key);
+      if (meshes) meshes.push(mesh);
+      else idle.set(key, [mesh]);
+    });
+    const unmatched: typeof entries = [];
+    entries.forEach((entry) => {
+      const mesh = idle.get(entry.layout.key)?.pop();
+      if (mesh) this.assignMesh(mesh, entry.run, entry.layout);
+      else unmatched.push(entry);
+    });
+    const spare = this.meshes.filter((mesh) => mesh.userData.inkQueuedFrame !== this.frameSerial);
+    unmatched.forEach((entry) => {
+      this.assignMesh(spare.shift() ?? this.createMesh(), entry.run, entry.layout);
+    });
+  }
+
+  private assignMesh(mesh: InkMesh, run: PhysicalInkTextRun, layout: InkLayout): void {
+    mesh.userData.inkQueuedFrame = this.frameSerial;
+    this.configureMesh(mesh, run, layout);
+    if (mesh.userData.inkReadyLayoutKey !== layout.key) this.pending.push(run);
+  }
+
+  private layoutFor(run: PhysicalInkTextRun): InkLayout {
     const weight = Math.max(100, Math.min(900, run.weight ?? 400));
     const italic = run.italic ?? false;
     const face = nearestFontFace(this.fontFaces, weight, italic, run.family ?? "manuscript");
     const align = run.align ?? "left";
     const maxWidth = run.maxWidth && run.maxWidth > 0 ? run.maxWidth : Number.POSITIVE_INFINITY;
     const lineHeight = run.lineHeight ? run.lineHeight / run.size : "normal";
-    const layoutKey = JSON.stringify([
+    // Body-sized type never needs a 128px field. Halving it for small runs
+    // quarters the atlas area that most Japanese glyphs occupy.
+    const sdfGlyphSize = run.size >= 22 ? 128 : 64;
+    const key = JSON.stringify([
       run.text,
       run.size,
       maxWidth,
@@ -475,7 +532,13 @@ export class PhysicalInkTextRenderer {
       run.locale ?? "en",
       run.whiteSpace ?? "normal",
       run.overflowWrap ?? "break-word",
+      sdfGlyphSize,
     ]);
+    return { key, face, weight, italic, align, maxWidth, lineHeight, sdfGlyphSize };
+  }
+
+  private configureMesh(mesh: InkMesh, run: PhysicalInkTextRun, layout: InkLayout): void {
+    const { key: layoutKey, face, weight, italic, align, maxWidth, lineHeight } = layout;
 
     if (mesh.userData.inkLayoutKey !== layoutKey) {
       mesh.userData.inkLayoutKey = layoutKey;
@@ -494,6 +557,7 @@ export class PhysicalInkTextRenderer {
       mesh.textAlign = align;
       mesh.anchorX = align;
       mesh.anchorY = "top-baseline";
+      mesh.sdfGlyphSize = layout.sdfGlyphSize;
       mesh.scale.set(1, 1, 1);
       mesh.userData.inkMaxWidth = maxWidth;
 
