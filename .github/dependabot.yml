@@ -10,6 +10,12 @@ updates:
    directory: "/"
    schedule:
      interval: weekly
+   # One PR per run, major updates included: most dependencies track `latest`,
+   # so each update rewrites the whole pnpm lockfile and separate PRs conflict.
+   groups:
+     npm-dependencies:
+       patterns:
+         - "*"
  - package-ecosystem: "devcontainers"
    directory: "/"
    schedule:
