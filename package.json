@@ -13,15 +13,15 @@
     "astro": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "three": "0.186.1",
-    "troika-three-text": "0.53.0"
+    "three": "0.187.0",
+    "troika-three-text": "0.53.1"
   },
   "devDependencies": {
     "@astrojs/check": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "@types/three": "0.185.0",
-    "typescript": "^6.0.3"
+    "@types/three": "0.187.0",
+    "typescript": "^7.0.2"
   },
   "packageManager": "pnpm@11.2.1"
 }
