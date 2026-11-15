@@ -361,14 +361,6 @@ function drawInkLine(
     family?: "manuscript" | "reference" | "display";
   } = {},
 ) {
-  // Troika's GPOS handling collapses the full-width middle dot (U+30FB) of
-  // Noto Serif JP, the reference face, to almost no advance. Reference runs
-  // therefore use the Latin middle dot, spaced when it joins Latin words.
-  if (options.family === "reference" && text.includes("・")) {
-    text = text
-      .replace(/(?<=[A-Za-z0-9])・(?=[A-Za-z0-9])/gu, " · ")
-      .replace(/・/gu, "·");
-  }
   context.save();
   context.textAlign = options.align ?? "left";
   context.textBaseline = "alphabetic";
