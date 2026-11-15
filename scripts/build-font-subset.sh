@@ -149,15 +149,40 @@ PY
 "$FONTTOOLS_PY" -m fontTools.varLib.instancer \
   "$SOURCE_NOTO_FONT" wght=600 --static --update-name-table --no-recalc-timestamp -o "$STATIC_NOTO_SEMIBOLD_FONT"
 
+# Troika, the grimoire's GPU text renderer, applies every positioning lookup a
+# font contains instead of only the features a browser enables by default. The
+# optional CJK spacing features below would therefore always squeeze 、。・ and
+# brackets in Noto Serif JP, so the subsets keep every feature except these.
+OPTIONAL_SPACING_FEATURES="chws,halt,palt,vchw,vhal,vkrn,vpal"
+
+layout_features_without_spacing() {
+  "$FONTTOOLS_PY" - "$1" "$OPTIONAL_SPACING_FEATURES" <<'PY'
+from fontTools.ttLib import TTFont
+import sys
+
+font = TTFont(sys.argv[1], lazy=True)
+excluded = set(sys.argv[2].split(","))
+tags = {
+    record.FeatureTag
+    for table in ("GSUB", "GPOS")
+    if table in font
+    for record in font[table].table.FeatureList.FeatureRecord
+}
+print(",".join(sorted(tags - excluded)))
+PY
+}
+
 subset_face() {
   local input_font="$1"
   local output_font="$2"
+  local layout_features
+  layout_features="$(layout_features_without_spacing "$input_font")"
 
   "$FONTTOOLS_PY" -m fontTools.subset "$input_font" \
     --text-file="$CHARACTERS_FILE" \
     --output-file="$output_font" \
     --flavor=woff \
-    --layout-features='*' \
+    --layout-features="$layout_features" \
     --layout-scripts='*' \
     --name-IDs='*' \
     --name-legacy \
@@ -192,7 +217,7 @@ install -m 0644 "$SOURCE_FELL_LICENSE" "$OUTPUT_DIR/OFL-IMFellEnglish.txt"
 install -m 0644 "$SUBSET_FONDAMENTO_ITALIC_FONT" "$OUTPUT_FONDAMENTO_ITALIC_FONT"
 install -m 0644 "$SOURCE_FONDAMENTO_LICENSE" "$OUTPUT_DIR/OFL-Fondamento.txt"
 
-"$FONTTOOLS_PY" - \
+OPTIONAL_SPACING_FEATURES="$OPTIONAL_SPACING_FEATURES" "$FONTTOOLS_PY" - \
   "$OUTPUT_MANUSCRIPT_FONT" \
   "$OUTPUT_NOTO_REGULAR_FONT" \
   "$OUTPUT_NOTO_SEMIBOLD_FONT" \
@@ -203,13 +228,24 @@ install -m 0644 "$SOURCE_FONDAMENTO_LICENSE" "$OUTPUT_DIR/OFL-Fondamento.txt"
   "$CHARACTERS_FILE" <<'PY'
 from fontTools.ttLib import TTFont
 from pathlib import Path
+import os
 import sys
 
 characters = set(Path(sys.argv[-1]).read_text(encoding="utf-8"))
+excluded_features = set(os.environ["OPTIONAL_SPACING_FEATURES"].split(","))
 
 for value in sys.argv[1:-1]:
     path = Path(value)
     font = TTFont(path)
+    kept_spacing = sorted({
+        record.FeatureTag
+        for table in ("GSUB", "GPOS")
+        if table in font
+        for record in font[table].table.FeatureList.FeatureRecord
+        if record.FeatureTag in excluded_features
+    })
+    if kept_spacing:
+        sys.exit(f"{path} still carries spacing features troika would always apply: {kept_spacing}")
     glyph_count = len(font.getGlyphOrder())
     codepoints = {
         codepoint

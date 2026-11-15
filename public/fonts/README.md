@@ -20,6 +20,11 @@ renderer may apply a subtle geometric slant where the composition calls for it.
 Yuji Syuku does not contain the diagonal arrow `↗` used by the current external
 link label; that character should use the Noto fallback face.
 
+The subsets keep every OpenType feature except the optional CJK spacing
+features `chws`, `halt` and `palt` and their vertical forms. The GPU text
+renderer applies every positioning lookup a font contains, so these would
+always squeeze `、`, `。`, `・` and brackets, and set kana proportionally.
+
 ## Yuji Syuku
 
 - Upstream: [Kinuta Font Factory — Yuji](https://github.com/Kinutafontfactory/Yuji/tree/efec977b14b57c19eb85d468edcfbbad13139e67)
