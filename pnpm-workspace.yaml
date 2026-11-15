@@ -1,3 +1,9 @@
 allowBuilds:
   esbuild: true
 confirmModulesPurge: false
+# @astrojs/astro2tsx pins @emnapi/core but not @emnapi/runtime, so pnpm can hand
+# it the 2.0 beta that rolldown brings in, and astro check then fails to load.
+packageExtensions:
+  "@astrojs/astro2tsx":
+    dependencies:
+      "@emnapi/runtime": ^1.11.3
