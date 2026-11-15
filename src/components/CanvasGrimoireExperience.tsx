@@ -1994,40 +1994,47 @@ function drawChapter(
   context.restore();
 }
 
-function drawPalimpsestChapter(
-  context: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  state: VisualState,
-  content: SiteContent,
-  locale: Locale,
-) {
+/** What a scroll-driven page turn puts on the vellum at its current progress. */
+type PageTurnFrame = {
+  /** The chapter on the page. */
+  chapter: number;
+  /** Ink presence handed to drawChapter. */
+  phase: number;
+  /** Scorch level for the parchment shader; 1 is settled ink. */
+  scorch: number;
+  /** How far the fibres have drunk the old ink; 0 leaves it alone. */
+  absorption: number;
+  /** Height-field ripple of the parchment. */
+  ripple: number;
+};
+
+function pageTurnFrame(state: VisualState): PageTurnFrame {
   const transition = state.palimpsest;
   if (transition.from === transition.to || transition.progress <= 0.001) {
-    drawChapter(context, width, height, state.active, content, locale, state.chapterPhase);
-    return;
+    return { chapter: state.active, phase: state.chapterPhase, scorch: 1, absorption: 0, ripple: 0 };
   }
-
   const progress = clamp(0, transition.progress, 1);
   // The page does not slide or crossfade. The old pigment is first taken back
-  // into the fibres; only after a quiet interval does the next hand bleed out.
-  const oldInk = 1 - smoothstep(0.04, 0.45, progress);
-  const newInk = smoothstep(0.55, 0.98, progress);
-
-  drawChapter(context, width, height, transition.from, content, locale, oldInk);
-  drawChapter(context, width, height, transition.to, content, locale, newInk);
+  // into the fibres; after a quiet interval the next chapter rises with the
+  // title page's scorch, so every page arrives the way the first one did.
+  if (progress < 0.5) {
+    return {
+      chapter: transition.from,
+      phase: 1 - smoothstep(0.04, 0.45, progress),
+      scorch: 1,
+      absorption: smoothstep(0.02, 0.48, progress),
+      ripple: Math.sin(progress * 2 * Math.PI) * 0.16,
+    };
+  }
+  return { chapter: transition.to, phase: 1, scorch: smoothstep(0.55, 0.98, progress), absorption: 0, ripple: 0 };
 }
 
 function absorbPalimpsestInk(
   context: CanvasRenderingContext2D,
-  progress: number,
+  strength: number,
   paperAbsorption: CanvasImageSource,
   capillaryMasks: readonly CanvasImageSource[],
 ) {
-  const phase = clamp(0, progress, 1);
-  const strength = phase < 0.5
-    ? smoothstep(0.02, 0.48, phase)
-    : 1 - smoothstep(0.52, 0.98, phase);
   if (strength <= 0.01) return;
 
   context.save();
@@ -3149,8 +3156,9 @@ function paintScene(
     ? { runs: [] as PhysicalInkTextRun[], locale, dpr: size.dpr }
     : null;
   if (gpuText) INK_TEXT_COLLECTIONS.set(inkContext, gpuText);
-  drawFolio(inkContext, size.width, size.height, locale, state.active);
-  drawPalimpsestChapter(inkContext, size.width, size.height, state, content, locale);
+  const turn = pageTurnFrame(state);
+  drawFolio(inkContext, size.width, size.height, locale, turn.chapter);
+  drawChapter(inkContext, size.width, size.height, turn.chapter, content, locale, turn.phase);
   if (gpuText && textRenderer) {
     // Queue the awakened phrase before the GPU pass; its sigil and the user's
     // physical stroke are deliberately drawn afterwards, above static type.
@@ -3174,7 +3182,7 @@ function paintScene(
     }
     inkContext.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
     drawPendingInk(inkContext, textRenderer.pendingRuns);
-    absorbPalimpsestInk(inkContext, state.palimpsest.progress, inkSurface.absorption, inkSurface.capillary);
+    absorbPalimpsestInk(inkContext, turn.absorption, inkSurface.absorption, inkSurface.capillary);
     state.ritualStrokes.forEach((stroke) => drawInkStroke(inkContext, stroke));
     drawInkStroke(inkContext, state.points);
     drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, state.points, state.ritual, {
@@ -3182,7 +3190,7 @@ function paintScene(
       phrase: false,
     });
   } else {
-    absorbPalimpsestInk(inkContext, state.palimpsest.progress, inkSurface.absorption, inkSurface.capillary);
+    absorbPalimpsestInk(inkContext, turn.absorption, inkSurface.absorption, inkSurface.capillary);
     state.ritualStrokes.forEach((stroke) => drawInkStroke(inkContext, stroke));
     drawInkStroke(inkContext, state.points);
     drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, state.points, state.ritual);
@@ -3202,8 +3210,9 @@ function paintScene(
   inkContext.drawImage(inkSurface.grooves, 0, 0);
   inkContext.restore();
 
+  const scorch = Math.min(state.scorch, turn.scorch);
   if (parchmentRenderer?.available) {
-    const scorching = state.scorch < 1;
+    const scorching = scorch < 1;
     if (scorching) updateScorchSources(inkSurface);
     const physicalSurface = parchmentRenderer.renderFrame(size, {
       albedo: inkSurface.albedo,
@@ -3212,14 +3221,14 @@ function paintScene(
       scorchSoft: scorching ? inkSurface.scorchSoft : undefined,
       scorchHaze: scorching ? inkSurface.scorchHaze : undefined,
     }, {
-      palimpsest: Math.sin(clamp(0, state.palimpsest.progress, 1) * Math.PI) * 0.16,
+      palimpsest: turn.ripple,
       mechanism: state.ritual.stage === "unsealed"
         ? Math.sin(clamp(0, state.ritual.mechanismPhase, 1) * Math.PI)
         : 0,
       mechanismCenter: state.ritual.sigil
         ? { x: state.ritual.sigil.x, y: state.ritual.sigil.y }
         : undefined,
-      scorch: state.scorch,
+      scorch,
     });
     if (!parchmentRenderer.available) {
       paintScene(canvas, size, state, content, locale, textRenderer, null);
@@ -3229,8 +3238,8 @@ function paintScene(
     return;
   }
 
-  // Without the GPU surface there is no scorch; the ink fades in instead.
-  const inkPresence = smoothstep(0.04, 0.5, state.scorch);
+  // Without the GPU surface there is no scorch; the ink fades instead.
+  const inkPresence = smoothstep(0.04, 0.5, scorch);
 
   // Iron-gall ink first blooms into the skin, then leaves a sharper pigment
   // body above it.  Sharing these two passes is what makes type and gesture
@@ -4785,7 +4794,10 @@ export function CanvasGrimoireExperience({
     const paintScorch = (progress: number) => {
       state.scorch = progress;
       const canvas = canvasRef.current;
-      const surface = parchmentRendererRef.current?.renderScorch(progress);
+      // A page turn started by scrolling owns the ink texture. Repaint fully
+      // so that its scorch and this one combine.
+      const turning = pageTurnFrame(state).scorch < 1;
+      const surface = turning ? null : parchmentRendererRef.current?.renderScorch(progress);
       if (canvas && surface) paintScorchFrame(canvas, sizeRef.current, surface);
       else paint();
     };
