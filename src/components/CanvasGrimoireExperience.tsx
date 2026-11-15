@@ -35,6 +35,8 @@ type RitualState = {
   guideOpacity: number;
 };
 type VisualState = {
+  /** The opening scorch: 0 is the blank page, 1 the settled ink. */
+  scorch: number;
   active: number;
   chapterPhase: number;
   palimpsest: PalimpsestState;
@@ -152,7 +154,20 @@ type InkSurfaceLayer = MaterialLayer & {
   grooves: HTMLCanvasElement;
   surface: HTMLCanvasElement;
   glyph: HTMLCanvasElement;
+  scorchSoft: HTMLCanvasElement;
+  scorchHaze: HTMLCanvasElement;
+  scorchHazeStep: HTMLCanvasElement;
 };
+
+/** CSS pixels per texel of the scorch's soft copy of the ink. */
+const SCORCH_SOFT_TEXEL = 5;
+/** The blank page holds this long, so it is seen as blank before the scorch. */
+const SCORCH_HOLD_MS = 340;
+/** Slow fonts or textures may delay the scorch this long and no longer. */
+const SCORCH_WAIT_LIMIT_MS = 2000;
+const SCORCH_DURATION_MS = 2400;
+/** How much faster the scorch runs out once the reader scrolls or writes. */
+const SCORCH_RUSH = 6;
 
 // The skin is a material, not an animation. Baking it once keeps inscription
 // latency independent from the hundreds of fibres and pores in the surface.
@@ -956,6 +971,30 @@ function buildCapillaryMasks(width: number, height: number, paperAbsorption: HTM
   });
 }
 
+/**
+ * Shrinks the finished ink into the soft copy and the haze that the opening
+ * scorch tightens through.
+ */
+function updateScorchSources(layer: InkSurfaceLayer) {
+  const soft = layer.scorchSoft.getContext("2d");
+  const step = layer.scorchHazeStep.getContext("2d");
+  const haze = layer.scorchHaze.getContext("2d");
+  if (!soft || !step || !haze) return;
+  // Shrinking the soft copy further and stretching it back blurs it without
+  // a canvas filter, which not every browser supports.
+  const draws: [CanvasRenderingContext2D, CanvasImageSource][] = [
+    [soft, layer.canvas],
+    [step, layer.scorchSoft],
+    [haze, layer.scorchHazeStep],
+  ];
+  draws.forEach(([context, source]) => {
+    context.clearRect(0, 0, context.canvas.width, context.canvas.height);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(source, 0, 0, context.canvas.width, context.canvas.height);
+  });
+}
+
 function inkSurfaceLayer(canvas: HTMLCanvasElement, size: CanvasSize) {
   const cached = INK_SURFACE_LAYERS.get(canvas);
   if (
@@ -975,6 +1014,13 @@ function inkSurfaceLayer(canvas: HTMLCanvasElement, size: CanvasSize) {
   const glyph = document.createElement("canvas");
   layer.width = albedo.width = absorption.width = relief.width = grooves.width = surface.width = glyph.width = Math.max(1, Math.round(size.width * size.dpr));
   layer.height = albedo.height = absorption.height = relief.height = grooves.height = surface.height = glyph.height = Math.max(1, Math.round(size.height * size.dpr));
+  const scorchSoft = document.createElement("canvas");
+  const scorchHaze = document.createElement("canvas");
+  const scorchHazeStep = document.createElement("canvas");
+  scorchSoft.width = scorchHaze.width = Math.max(1, Math.round(size.width / SCORCH_SOFT_TEXEL));
+  scorchSoft.height = scorchHaze.height = Math.max(1, Math.round(size.height / SCORCH_SOFT_TEXEL));
+  scorchHazeStep.width = Math.max(1, Math.round(scorchSoft.width / 6));
+  scorchHazeStep.height = Math.max(1, Math.round(scorchSoft.height / 6));
 
   const albedoContext = albedo.getContext("2d");
   const surfaceContext = surface.getContext("2d");
@@ -1112,7 +1158,7 @@ function inkSurfaceLayer(canvas: HTMLCanvasElement, size: CanvasSize) {
     mask.restore();
   }
   const capillary = buildCapillaryMasks(size.width, size.height, absorption);
-  const next = { canvas: layer, albedo, absorption, capillary, relief, grooves, surface, glyph, ...size, textureVersion: vellumTextureVersion };
+  const next = { canvas: layer, albedo, absorption, capillary, relief, grooves, surface, glyph, scorchSoft, scorchHaze, scorchHazeStep, ...size, textureVersion: vellumTextureVersion };
   INK_SURFACE_LAYERS.set(canvas, next);
   return next;
 }
@@ -3044,6 +3090,37 @@ function drawMagic(
   }
 }
 
+function drawPhysicalSurface(
+  context: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  size: CanvasSize,
+  surface: HTMLCanvasElement,
+) {
+  context.save();
+  context.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
+  context.shadowColor = "rgba(0,0,0,.62)";
+  context.shadowBlur = size.width < 700 ? 16 : 30;
+  context.shadowOffsetX = size.width < 700 ? 2 : 7;
+  context.shadowOffsetY = size.width < 700 ? 8 : 16;
+  context.fillStyle = "#1a100b";
+  context.fill(paperPath(size.width, size.height));
+  context.restore();
+  context.save();
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.drawImage(surface, 0, 0, canvas.width, canvas.height);
+  context.restore();
+}
+
+/** One frame of the opening scorch. The ink is already on the GPU, so only the scorch moves. */
+function paintScorchFrame(canvas: HTMLCanvasElement, size: CanvasSize, surface: HTMLCanvasElement) {
+  const context = canvas.getContext("2d");
+  if (!context) return;
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(deskLayer(canvas, size), 0, 0);
+  drawPhysicalSurface(context, canvas, size, surface);
+}
+
 function paintScene(
   canvas: HTMLCanvasElement,
   size: CanvasSize,
@@ -3134,10 +3211,14 @@ function paintScene(
   inkContext.restore();
 
   if (parchmentRenderer?.available) {
+    const scorching = state.scorch < 1;
+    if (scorching) updateScorchSources(inkSurface);
     const physicalSurface = parchmentRenderer.renderFrame(size, {
       albedo: inkSurface.albedo,
       height: inkSurface.surface,
       ink: inkSurface.canvas,
+      scorchSoft: scorching ? inkSurface.scorchSoft : undefined,
+      scorchHaze: scorching ? inkSurface.scorchHaze : undefined,
     }, {
       palimpsest: Math.sin(clamp(0, state.palimpsest.progress, 1) * Math.PI) * 0.16,
       mechanism: state.ritual.stage === "unsealed"
@@ -3146,26 +3227,18 @@ function paintScene(
       mechanismCenter: state.ritual.sigil
         ? { x: state.ritual.sigil.x, y: state.ritual.sigil.y }
         : undefined,
+      scorch: state.scorch,
     });
     if (!parchmentRenderer.available) {
       paintScene(canvas, size, state, content, locale, textRenderer, null);
       return;
     }
-    context.save();
-    context.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
-    context.shadowColor = "rgba(0,0,0,.62)";
-    context.shadowBlur = size.width < 700 ? 16 : 30;
-    context.shadowOffsetX = size.width < 700 ? 2 : 7;
-    context.shadowOffsetY = size.width < 700 ? 8 : 16;
-    context.fillStyle = "#1a100b";
-    context.fill(paperPath(size.width, size.height));
-    context.restore();
-    context.save();
-    context.setTransform(1, 0, 0, 1, 0, 0);
-    context.drawImage(physicalSurface, 0, 0, canvas.width, canvas.height);
-    context.restore();
+    drawPhysicalSurface(context, canvas, size, physicalSurface);
     return;
   }
+
+  // Without the GPU surface there is no scorch; the ink fades in instead.
+  const inkPresence = smoothstep(0.04, 0.5, state.scorch);
 
   // Iron-gall ink first blooms into the skin, then leaves a sharper pigment
   // body above it.  Sharing these two passes is what makes type and gesture
@@ -3173,13 +3246,13 @@ function paintScene(
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.save();
   context.globalCompositeOperation = "multiply";
-  context.globalAlpha = 0.085;
+  context.globalAlpha = 0.085 * inkPresence;
   context.filter = `blur(${Math.max(0.4, size.dpr * 0.34)}px)`;
   context.drawImage(inkSurface.canvas, 0, 0);
   context.restore();
   context.save();
   context.globalCompositeOperation = "multiply";
-  context.globalAlpha = 0.86;
+  context.globalAlpha = 0.86 * inkPresence;
   context.drawImage(inkSurface.canvas, 0, 0);
   context.restore();
 
@@ -3986,7 +4059,7 @@ const STYLES = `
     line-height: 1;
     text-decoration: none;
     text-transform: uppercase;
-    transition: color 180ms ease, text-shadow 180ms ease;
+    transition: color 180ms ease, text-shadow 180ms ease, opacity 700ms ease;
   }
   .canvas-grimoire-language:hover,
   .canvas-grimoire-language:focus-visible {
@@ -4009,7 +4082,7 @@ const STYLES = `
     line-height: 1;
     text-decoration: none;
     text-transform: uppercase;
-    transition: color 180ms ease, text-shadow 180ms ease;
+    transition: color 180ms ease, text-shadow 180ms ease, opacity 700ms ease;
   }
   .canvas-grimoire-profile:hover,
   .canvas-grimoire-profile:focus-visible {
@@ -4019,6 +4092,16 @@ const STYLES = `
   .canvas-grimoire-profile:focus-visible {
     outline: 1px solid rgba(96, 40, 27, .72);
     outline-offset: 6px;
+  }
+  .canvas-grimoire-stage[data-scorch] .canvas-grimoire-language,
+  .canvas-grimoire-stage[data-scorch] .canvas-grimoire-profile {
+    opacity: 0;
+  }
+  .canvas-grimoire-stage[data-scorch="dark"] .canvas-grimoire-surface {
+    opacity: 0;
+  }
+  .canvas-grimoire-stage[data-scorch="rising"] .canvas-grimoire-surface {
+    transition: opacity 260ms ease;
   }
   .canvas-grimoire-product-links {
     position: absolute;
@@ -4222,6 +4305,7 @@ export function CanvasGrimoireExperience({
   const parchmentRendererRef = useRef<PhysicalParchmentRenderer | null>(null);
   const sizeRef = useRef<CanvasSize>({ width: 0, height: 0, dpr: 1 });
   const visualRef = useRef<VisualState>({
+    scorch: 0,
     active: 0,
     chapterPhase: 1,
     palimpsest: { from: 0, to: 0, progress: 0 },
@@ -4240,6 +4324,8 @@ export function CanvasGrimoireExperience({
   const paintFrameRef = useRef<number | null>(null);
   const versoTimersRef = useRef<number[]>([]);
   const reducedMotionRef = useRef(false);
+  const inkReadyRef = useRef(false);
+  const [scorchPhase, setScorchPhase] = useState<"dark" | "rising" | "settled">("dark");
   const [active, setActive] = useState(0);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [announcement, setAnnouncement] = useState<string>(COPY[locale].keyboard);
@@ -4270,6 +4356,12 @@ export function CanvasGrimoireExperience({
       textRendererRef.current,
       parchmentRendererRef.current,
     );
+    // Every late asset repaints, so this is current whenever the scorch asks.
+    const text = textRendererRef.current;
+    inkReadyRef.current = Boolean(parchmentRendererRef.current?.available)
+      && Boolean(vellumTexture?.complete && vellumTexture.naturalWidth > 0)
+      && document.fonts.status === "loaded"
+      && (text ? text.available && text.pendingRuns.length === 0 : !PhysicalInkTextRenderer.isSupported());
   }, [content, locale]);
 
   const schedulePaint = useCallback(() => {
@@ -4665,6 +4757,87 @@ export function CanvasGrimoireExperience({
     paint();
   }, [locale, paint]);
 
+  useEffect(() => {
+    const state = visualRef.current;
+    const stage = stageRef.current;
+    if (!stage) return;
+    let frame: number | null = null;
+    let rushing = false;
+    const rush = () => { rushing = true; };
+    const stopListening = () => {
+      window.removeEventListener("scroll", rush);
+      stage.removeEventListener("pointerdown", rush);
+    };
+    const settle = () => {
+      frame = null;
+      stopListening();
+      state.scorch = 1;
+      setScorchPhase("settled");
+      paint();
+    };
+    // The scorch belongs to the title page. A page restored further down, or a
+    // reader who has asked for less motion, gets the settled ink at once.
+    if (reducedMotionRef.current || window.scrollY > 4) {
+      settle();
+      return;
+    }
+    window.addEventListener("scroll", rush, { passive: true });
+    stage.addEventListener("pointerdown", rush);
+
+    const mounted = performance.now();
+    let pageShownAt: number | null = null;
+    let started = false;
+    let previous = mounted;
+    let elapsed = 0;
+    let linksShown = false;
+    const paintScorch = (progress: number) => {
+      state.scorch = progress;
+      const canvas = canvasRef.current;
+      const surface = parchmentRendererRef.current?.renderScorch(progress);
+      if (canvas && surface) paintScorchFrame(canvas, sizeRef.current, surface);
+      else paint();
+    };
+    const step = (now: number) => {
+      if (!started) {
+        // Moving on before the scorch starts is no reason to wait for it.
+        if (rushing) {
+          settle();
+          return;
+        }
+        const waited = now - mounted;
+        if (pageShownAt === null && (parchmentRendererRef.current?.hasFrame || waited >= SCORCH_WAIT_LIMIT_MS)) {
+          pageShownAt = now;
+          setScorchPhase("rising");
+        }
+        const held = pageShownAt !== null && now - pageShownAt >= SCORCH_HOLD_MS;
+        if (waited < SCORCH_WAIT_LIMIT_MS && !(inkReadyRef.current && held)) {
+          frame = requestAnimationFrame(step);
+          return;
+        }
+        started = true;
+        previous = now;
+      }
+      elapsed += (now - previous) * (rushing ? SCORCH_RUSH : 1);
+      previous = now;
+      const progress = elapsed / SCORCH_DURATION_MS;
+      if (progress >= 1) {
+        settle();
+        return;
+      }
+      if (progress >= 0.6 && !linksShown) {
+        linksShown = true;
+        setScorchPhase("settled");
+      }
+      paintScorch(progress);
+      frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => {
+      stopListening();
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, [paint]);
+
   useEffect(() => () => {
     cancelAnimation();
     cancelTracingHint();
@@ -4901,6 +5074,7 @@ export function CanvasGrimoireExperience({
       <div
         ref={stageRef}
         className="canvas-grimoire-stage"
+        data-scorch={scorchPhase === "settled" ? undefined : scorchPhase}
         data-verso={versoPhase === "surface" || versoPhase === "priming" ? undefined : versoPhase}
       >
         <canvas
