@@ -59,6 +59,7 @@ type ProductLinkRow = {
   links: { label: string; href: string }[];
   x: number;
   y: number;
+  angle: number;
 };
 
 // Products come straight after the title page: the folio should show what was
@@ -83,27 +84,25 @@ const COPY = {
   ja: {
     volume: "ISCHCA · SOFTWARE ENGINEER · TOKYO",
     home: "扉",
-    catalog: "収録作品",
     craft: "主な技術",
     fit: "向いている案件",
     scope: "対応範囲",
     outcome: "成果物",
     tools: "主な技術",
     signature: "— Ischca",
-    circleReady: "円が完成しました。指やマウスを離し、錆色の星の線をすべてなぞると次の演出が始まります。",
-    mechanismOpen: "八芒星が完成し、技術レイヤーが開き始めました。",
-    traceStar: "一筆書きでなくても構いません。錆色の線をすべてなぞる",
-    harmlessMechanism: "ポートフォリオの情報は、この操作をしなくてもすべて閲覧できます。",
-    draw: "余白をドラッグすると、インクが反応します",
-    awake: "インクが反応しました",
-    keyboard: "各セクションはローマ数字、または左右キーで選べます。",
+    circleReady: "円が完成した。指やマウスを離し、錆色の星の線をすべてなぞると、次の演出が始まる。",
+    mechanismOpen: "八芒星が完成し、技術レイヤーが開き始めた。",
+    traceStar: "一筆書きでなくてもよい。錆色の線をすべてなぞる",
+    harmlessMechanism: "ポートフォリオの情報はこの操作をしなくてもすべて読める。",
+    draw: "余白をドラッグすると、インクが応える",
+    awake: "インクが応えた",
+    keyboard: "各セクションはローマ数字か左右キーで選べる。",
     folio: "SECTION",
-    hidden: "すべてのプロフィール情報は、操作の成否に関係なく表示されています。",
+    hidden: "プロフィールの情報は操作の成否にかかわらずすべて表示される。",
   },
   en: {
     volume: "ISCHCA · SOFTWARE ENGINEER · TOKYO",
     home: "Title page",
-    catalog: "In this volume",
     craft: "Craft",
     fit: "best suited for",
     scope: "scope",
@@ -233,19 +232,55 @@ function referenceFont(size: number, weight = 400, italic = false) {
 }
 
 // Japanese line-breaking rules (kinsoku). Closing punctuation, small kana, and
-// the prolonged sound mark never begin a line; they hang into the margin of
-// the previous line instead. Opening brackets never end a line.
+// the prolonged sound mark never begin a line, and opening brackets never end
+// one. Commas and full stops hang into the margin of the line they close.
 const NO_LINE_START = new Set(Array.from(
   "、。，．,.:;：；!?！？)]}）］｝〕〉》」』】〙〗〟’”｠»ー…‥・ゝゞヽヾ々〻ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶ%％",
 ));
 const NO_LINE_END = new Set(Array.from("([{（［｛〔〈《「『【〘〖〝‘“｟«"));
+const HANGING_PUNCTUATION = new Set(Array.from("、。，．,."));
+
+const CJK_TEXT = /[　-ヿ㐀-鿿＀-￯]/u;
+// Script runs: a Latin word (product names, versions, "N+1"), spaces,
+// hiragana, katakana, kanji, or any other single character such as "、".
+const LINE_UNIT = /[A-Za-z0-9][A-Za-z0-9.+#@'’/_-]*|\s+|[ぁ-ゖゝゞー]+|[ァ-ヺー-ヾㇰ-ㇿ]+|[々〆〇㐀-䶿一-鿿豈-﫿]+|./gsu;
+// The previous per-character units, for a phrase wider than the whole line.
+const CHARACTER_UNIT = /[A-Za-z0-9][A-Za-z0-9.+#@'’/_-]*|\s+|./gsu;
+const WORD_START = /^[A-Za-z0-9ぁ-ゖゝゞァ-ヺー-ヾㇰ-ㇿ々〆〇㐀-䶿一-鿿豈-﫿]/u;
+// A word still open: it ends in kanji, katakana, or a Latin letter or digit.
+const OPEN_WORD_END = /[A-Za-z0-9ァ-ヺー-ヾㇰ-ㇿ々〆〇㐀-䶿一-鿿豈-﫿]$/u;
+// A phrase already closed by its hiragana or by a closing bracket.
+const CLOSED_PHRASE_END = /[ぁ-ゖゝゞ)\]}）］｝〕〉》」』】〙〗〟’”｠»]$/u;
+const HIRAGANA_START = /^[ぁ-ゖゝゞ]/u;
+const LINE_TOKENS = new Map<string, string[]>();
 
 function lineTokens(text: string) {
-  // Japanese prose breaks between characters, but Latin product names,
-  // versions, and numbers inside it ("LinkedIn", "v0.6.0", "N+1") stay whole.
-  const cjk = /[　-ヿ㐀-鿿＀-￯]/u.test(text);
-  if (!cjk) return text.split(/(\s+)/).filter(Boolean);
-  return text.match(/[A-Za-z0-9][A-Za-z0-9.+#@'’/_-]*|\s+|./gsu) ?? [];
+  if (!CJK_TEXT.test(text)) return text.split(/(\s+)/).filter(Boolean);
+  const cached = LINE_TOKENS.get(text);
+  if (cached) return cached;
+  // Japanese display type breaks between phrases (文節), never inside a word
+  // such as "ソフトウェア" or "指摘". A phrase is approximated by script: a
+  // run of kanji, katakana, or Latin letters and numbers, with the hiragana
+  // that follows it (okurigana and particles).
+  const tokens: string[] = [];
+  for (const unit of text.match(LINE_UNIT) ?? []) {
+    const previous = tokens.at(-1) ?? "";
+    if (previous && (NO_LINE_END.has(previous.slice(-1)) || (NO_LINE_START.has(unit) && !HANGING_PUNCTUATION.has(unit)))) {
+      // Brackets, the middle dot, and small kana stay with the text they touch.
+      tokens[tokens.length - 1] = `${previous}${unit}`;
+    } else if (!WORD_START.test(unit)) {
+      tokens.push(unit);
+    } else if (OPEN_WORD_END.test(previous) || (HIRAGANA_START.test(unit) && CLOSED_PHRASE_END.test(previous))) {
+      tokens[tokens.length - 1] = `${previous}${unit}`;
+    } else if (HIRAGANA_START.test(unit) && /^\s+$/u.test(previous) && OPEN_WORD_END.test(tokens.at(-2) ?? "")) {
+      // Keep "AI が" together so a particle never begins a line.
+      tokens.splice(-2, 2, `${tokens.at(-2)}${previous}${unit}`);
+    } else {
+      tokens.push(unit);
+    }
+  }
+  LINE_TOKENS.set(text, tokens);
+  return tokens;
 }
 
 function wrapLines(
@@ -254,7 +289,13 @@ function wrapLines(
   maxWidth: number,
   maxLines = Number.POSITIVE_INFINITY,
 ) {
-  const tokens = lineTokens(text);
+  // A Japanese phrase wider than the whole measure still breaks between
+  // characters, so it never runs past the margin.
+  const tokens = lineTokens(text).flatMap((token) =>
+    token.length > 3 && CJK_TEXT.test(token) && context.measureText(token).width > maxWidth
+      ? token.match(CHARACTER_UNIT) ?? [token]
+      : [token],
+  );
   const lines: string[] = [];
   let line = "";
   let truncated = false;
@@ -422,6 +463,8 @@ function drawWrapped(
     alpha?: number;
     align?: CanvasTextAlign;
     family?: "manuscript" | "reference" | "display";
+    /** Seed for a small per-line shift, so a hand-set paragraph has no ruled edge. */
+    drift?: number;
   } = {},
 ) {
   const lines = wrapLines(context, text, maxWidth, options.maxLines);
@@ -429,7 +472,9 @@ function drawWrapped(
   // the line is not condensed to fit.
   const hang = context.measureText("。").width;
   lines.forEach((line, index) => {
-    drawInkLine(context, line, x, y + index * lineHeight, {
+    const driftX = options.drift === undefined ? 0 : (hash(options.drift + index * 7) - 0.5) * 9;
+    const driftY = options.drift === undefined ? 0 : (hash(options.drift + index * 7 + 57) - 0.5) * 1.6;
+    drawInkLine(context, line, x + driftX, y + index * lineHeight + driftY, {
       color: options.color,
       alpha: options.alpha,
       align: options.align,
@@ -1271,6 +1316,48 @@ function drawDecoratedInitial(
   context.restore();
 }
 
+/** Runs `draw` with the origin at (x, y), leaning by `angle` radians. */
+function withTilt(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  angle: number,
+  draw: () => void,
+) {
+  context.save();
+  context.translate(x, y);
+  context.rotate(angle);
+  draw();
+  context.restore();
+}
+
+// The title page is set by hand, like the later folios: no two elements share
+// a margin, and each leans its own way. Positions are fractions of the page.
+const HOME_LAYOUT = {
+  wide: {
+    volume: { x: 0.15, y: 0.118, angle: -0.012 },
+    topFleuron: { x: 0.7, y: 0.13, width: 0.19 },
+    title: { x: 0.175, y: 0.365, angle: -0.03 },
+    lead: { x: 0.345, y: 0.445, angle: 0.01, width: 0.46 },
+    midFleuron: { x: 0.25, y: 0.545, width: 0.17 },
+    mark: { x: 0.735, y: 0.63 },
+    craftLabel: { x: 0.2, y: 0.665, angle: -0.016 },
+    craft: { x: 0.25, y: 0.705, angle: -0.007, width: 0.42 },
+    imprint: { x: 0.16, y: 0.888, angle: 0.006, width: 0.62 },
+  },
+  narrow: {
+    volume: { x: 0.115, y: 0.118, angle: -0.016 },
+    topFleuron: { x: 0.7, y: 0.168, width: 0.3 },
+    title: { x: 0.125, y: 0.325, angle: -0.034 },
+    lead: { x: 0.215, y: 0.385, angle: 0.012, width: 0.69 },
+    midFleuron: { x: 0.33, y: 0.485, width: 0.26 },
+    mark: { x: 0.69, y: 0.585 },
+    craftLabel: { x: 0.2, y: 0.695, angle: -0.02 },
+    craft: { x: 0.14, y: 0.73, angle: -0.011, width: 0.75 },
+    imprint: { x: 0.2, y: 0.882, angle: 0.008, width: 0.7 },
+  },
+};
+
 function drawHome(
   context: CanvasRenderingContext2D,
   width: number,
@@ -1280,94 +1367,70 @@ function drawHome(
 ) {
   const copy = COPY[locale];
   const narrow = width < 700;
-  const center = width * 0.5;
+  const place = narrow ? HOME_LAYOUT.narrow : HOME_LAYOUT.wide;
+  const at = (spot: { x: number; y: number; angle: number }, draw: () => void) =>
+    withTilt(context, width * spot.x, height * spot.y, spot.angle, draw);
+
   context.save();
-  context.font = referenceFont(narrow ? 8.6 : 10, 400, true);
-  drawInkLine(context, copy.volume, center, height * (narrow ? 0.125 : 0.12), {
-    align: "center",
-    alpha: 0.56,
-    family: "reference",
-    letterSpacing: 0.045,
+  at(place.volume, () => {
+    context.font = referenceFont(narrow ? 8.6 : 10, 400, true);
+    drawInkLine(context, copy.volume, 0, 0, { alpha: 0.56, family: "reference", letterSpacing: 0.045 });
   });
-  drawFleuron(context, center, height * (narrow ? 0.16 : 0.158), width * (narrow ? 0.3 : 0.2), 19, 0.31);
+  drawFleuron(context, width * place.topFleuron.x, height * place.topFleuron.y, width * place.topFleuron.width, 19, 0.31);
 
-  // The title page names the author and lists what the volume contains. The
-  // products come first; prose about the work stays in the later folios.
-  const titleSize = narrow ? 46 : clamp(58, width * 0.056, 84);
-  context.font = displayFont(titleSize);
-  drawInkLine(context, "Ischca", center, height * (narrow ? 0.255 : 0.27), {
-    align: "center",
-    alpha: 0.95,
-    pressure: 0.76,
-    absorption: 0.78,
-    letterSpacing: 0.012,
-    family: "display",
+  // The title page names the author and little else, as a printed one does;
+  // the products follow on the next folio.
+  at(place.title, () => {
+    context.font = displayFont(narrow ? 60 : clamp(72, width * 0.078, 116));
+    drawInkLine(context, "Ischca", 0, 0, {
+      alpha: 0.95,
+      pressure: 0.76,
+      absorption: 0.78,
+      letterSpacing: 0.012,
+      family: "display",
+    });
   });
-  context.font = font(locale, narrow ? 11 : 13.2);
-  drawWrapped(context, content.hero.lead, center, height * (narrow ? 0.305 : 0.335), width * (narrow ? 0.74 : 0.5), narrow ? 17 : 21, {
-    maxLines: 2,
-    color: "rgba(53,31,20,.78)",
-    align: "center",
-  });
-
-  drawFleuron(context, center, height * (narrow ? 0.39 : 0.405), width * (narrow ? 0.26 : 0.16), 73, 0.26);
-  context.font = referenceFont(narrow ? 8.4 : 9.6, 400, true);
-  drawInkLine(context, copy.catalog.toLocaleUpperCase(), center, height * (narrow ? 0.435 : 0.455), {
-    align: "center",
-    alpha: 0.72,
-    color: AWAKENED_INK,
-    family: "reference",
-    letterSpacing: 0.08,
+  at(place.lead, () => {
+    context.font = font(locale, narrow ? 11 : 13.2);
+    drawWrapped(context, content.hero.lead, 0, 0, width * place.lead.width, narrow ? 17 : 21, {
+      maxLines: 2,
+      color: "rgba(53,31,20,.78)",
+      drift: 211,
+    });
   });
 
-  const columns = narrow ? [0.24] : [0.27, 0.53];
-  const rows = narrow ? [0.49, 0.555, 0.62, 0.685] : [0.515, 0.6];
-  content.products.slice(0, 4).forEach((product, index) => {
-    const x = width * columns[narrow ? 0 : index % 2];
-    const y = height * rows[narrow ? index : Math.floor(index / 2)];
-    context.font = referenceFont(narrow ? 8.4 : 9.4, 400, true);
-    drawInkLine(context, ROMAN[index], x - (narrow ? 14 : 18), y, {
-      align: "right",
-      alpha: 0.66,
+  drawFleuron(context, width * place.midFleuron.x, height * place.midFleuron.y, width * place.midFleuron.width, 73, 0.26);
+  at(place.craftLabel, () => {
+    context.font = referenceFont(narrow ? 8.4 : 9.6, 400, true);
+    drawInkLine(context, copy.craft.toLocaleUpperCase(), 0, 0, {
+      alpha: 0.72,
       color: AWAKENED_INK,
       family: "reference",
+      letterSpacing: 0.08,
     });
-    context.font = displayFont(narrow ? 18.5 : 22);
-    drawInkLine(context, product.name, x, y, { alpha: 0.92, pressure: 0.72, family: "display" });
-    context.font = font(locale, narrow ? 9.4 : 10.4);
-    drawInkLine(context, product.kind, x, y + (narrow ? 15 : 18), {
-      alpha: 0.72,
-      color: INK_SOFT,
-      maxWidth: width * (narrow ? 0.62 : 0.22),
+  });
+  at(place.craft, () => {
+    context.font = referenceFont(narrow ? 9.6 : 11.4);
+    drawWrapped(context, content.hero.craft, 0, 0, width * place.craft.width, narrow ? 15 : 18, {
+      maxLines: 2,
+      color: "rgba(53,31,20,.8)",
+      family: "reference",
+      drift: 487,
     });
   });
 
-  context.font = referenceFont(narrow ? 8.4 : 9.6, 400, true);
-  drawInkLine(context, copy.craft.toLocaleUpperCase(), center, height * (narrow ? 0.765 : 0.705), {
-    align: "center",
-    alpha: 0.72,
-    color: AWAKENED_INK,
-    family: "reference",
-    letterSpacing: 0.08,
-  });
-  context.font = referenceFont(narrow ? 9.6 : 11.4);
-  drawWrapped(context, content.hero.craft, center, height * (narrow ? 0.795 : 0.74), width * (narrow ? 0.7 : 0.56), narrow ? 15 : 18, {
-    maxLines: 2,
-    color: "rgba(53,31,20,.8)",
-    align: "center",
-    family: "reference",
-  });
-
-  if (!narrow) drawPrinterMark(context, locale, center, height * 0.815, 22);
-  context.font = referenceFont(narrow ? 7.8 : 8.6, 400, true);
-  const imprint = locale === "ja"
-    ? `${content.hero.experienceLabel} ${content.hero.experienceValue}  ·  ${content.hero.focusValue}  ·  ${content.hero.communicationValue}`
-    : `${content.hero.experienceValue} EXPERIENCE  ·  ${content.hero.focusValue}  ·  ${content.hero.communicationValue}`;
-  drawWrapped(context, imprint, center, height * (narrow ? 0.875 : 0.885), width * (narrow ? 0.7 : 0.6), narrow ? 13 : 14, {
-    maxLines: 2,
-    color: "rgba(53,31,20,.58)",
-    align: "center",
-    family: "reference",
+  drawPrinterMark(context, locale, width * place.mark.x, height * place.mark.y, narrow ? 38 : clamp(46, height * 0.078, 78));
+  at(place.imprint, () => {
+    context.font = referenceFont(narrow ? 7.8 : 8.6, 400, true);
+    const imprint = locale === "ja"
+      ? `${content.hero.experienceLabel} ${content.hero.experienceValue}  ·  ${content.hero.focusValue}  ·  ${content.hero.communicationValue}`
+      : `${content.hero.experienceValue} EXPERIENCE  ·  ${content.hero.focusValue}  ·  ${content.hero.communicationValue}`;
+    drawWrapped(context, imprint, 0, 0, width * place.imprint.width, narrow ? 13 : 14, {
+      maxLines: 2,
+      color: "rgba(53,31,20,.58)",
+      family: "reference",
+      drift: 631,
+    });
   });
   context.restore();
 }
@@ -1400,24 +1463,6 @@ function drawChapterHeader(
   );
 }
 
-function drawChapterIntro(
-  context: CanvasRenderingContext2D,
-  locale: Locale,
-  text: string,
-  x: number,
-  y: number,
-  width: number,
-  narrow: boolean,
-  maxLines: number,
-) {
-  drawDecoratedInitial(context, locale, text.slice(0, 1), x - (narrow ? 26 : 35), y + (narrow ? 15 : 19), narrow ? 28 : 38);
-  context.font = font(locale, narrow ? 9 : 10.4);
-  drawWrapped(context, text.slice(1), x, y, width, narrow ? 14.5 : 17, {
-    maxLines,
-    color: "rgba(53,31,20,.7)",
-  });
-}
-
 function drawWork(
   context: CanvasRenderingContext2D,
   width: number,
@@ -1429,9 +1474,9 @@ function drawWork(
   const copy = COPY[locale];
   const positions = narrow
     ? [
-        { x: 0.17, y: 0.31, width: 0.68, angle: -0.012 },
-        { x: 0.22, y: 0.53, width: 0.65, angle: 0.014 },
-        { x: 0.15, y: 0.75, width: 0.7, angle: -0.009 },
+        { x: 0.17, y: 0.285, width: 0.68, angle: -0.012 },
+        { x: 0.22, y: 0.51, width: 0.65, angle: 0.014 },
+        { x: 0.15, y: 0.745, width: 0.7, angle: -0.009 },
       ]
     : [
         { x: 0.15, y: 0.35, width: 0.32, angle: -0.018 },
@@ -1444,21 +1489,15 @@ function drawWork(
     titleY: narrow ? 0.205 : 0.19,
     titleSize: narrow ? 23 : 33,
   });
-  drawChapterIntro(
-    context,
-    locale,
-    content.sections.workIntro,
-    width * (narrow ? 0.25 : 0.65),
-    height * (narrow ? 0.255 : 0.16),
-    width * (narrow ? 0.57 : 0.21),
-    narrow,
-    narrow ? 3 : 5,
-  );
 
+  // On a phone the areas stack in one column, so a long area pushes the next
+  // one down instead of writing over its heading.
+  let nextTop = 0;
   content.work.slice(0, 3).forEach((item, index) => {
     const position = positions[index];
+    const top = narrow ? Math.max(height * position.y, nextTop) : height * position.y;
     context.save();
-    context.translate(width * position.x, height * position.y);
+    context.translate(width * position.x, top);
     context.rotate(position.angle);
     const inset = narrow ? 17 : 24;
     const entryWidth = width * position.width - inset;
@@ -1486,11 +1525,13 @@ function drawWork(
       maxLines: narrow ? 1 : 2,
     });
     context.font = referenceFont(narrow ? 7.6 : 8.3, 400, true);
-    drawInkLine(context, `${copy.tools.toLocaleUpperCase()} · ${item.stack}`, inset, cursor + (narrow ? 2 : 4), {
+    const stackY = cursor + (narrow ? 2 : 4);
+    drawInkLine(context, `${copy.tools.toLocaleUpperCase()} · ${item.stack}`, inset, stackY, {
       alpha: 0.54,
       maxWidth: entryWidth,
       family: "reference",
     });
+    nextTop = top + stackY + 30;
     context.restore();
   });
   context.restore();
@@ -1525,16 +1566,6 @@ function drawCareer(
     titleY: narrow ? 0.205 : 0.215,
     titleSize: narrow ? 23 : 35,
   });
-  drawChapterIntro(
-    context,
-    locale,
-    content.sections.careerIntro,
-    width * (narrow ? 0.29 : 0.59),
-    height * (narrow ? 0.245 : 0.16),
-    width * (narrow ? 0.55 : 0.25),
-    narrow,
-    narrow ? 3 : 4,
-  );
 
   context.save();
   context.strokeStyle = "rgba(61,34,20,.28)";
@@ -1622,15 +1653,21 @@ function drawCareer(
 }
 
 /** Positions of each product entry on the products folio, as stage fractions. */
+// Each entry is placed by hand: offset from its neighbours, leaning its own
+// way, with its rule, status, body, and stack line starting at different points.
 function productSlots(width: number) {
-  const narrow = width < 700;
-  return narrow
-    ? [0.315, 0.47, 0.625, 0.78].map((y, index) => ({ x: 0.17, y, width: 0.68, angle: index % 2 ? 0.006 : -0.006 }))
+  return width < 700
+    ? [
+        { x: 0.165, y: 0.298, width: 0.69, angle: -0.013, rule: 0.92, statusInset: 0, bodyIndent: 0, stackIndent: 8 },
+        { x: 0.225, y: 0.452, width: 0.645, angle: 0.011, rule: 0.78, statusInset: 6, bodyIndent: 4, stackIndent: 0 },
+        { x: 0.145, y: 0.612, width: 0.7, angle: 0.009, rule: 0.88, statusInset: 4, bodyIndent: 3, stackIndent: 10 },
+        { x: 0.21, y: 0.772, width: 0.65, angle: -0.012, rule: 0.72, statusInset: 0, bodyIndent: 0, stackIndent: 6 },
+      ]
     : [
-        { x: 0.16, y: 0.345, width: 0.3, angle: -0.007 },
-        { x: 0.57, y: 0.345, width: 0.3, angle: 0.006 },
-        { x: 0.16, y: 0.64, width: 0.3, angle: 0.005 },
-        { x: 0.57, y: 0.64, width: 0.3, angle: -0.006 },
+        { x: 0.15, y: 0.3, width: 0.31, angle: -0.018, rule: 0.94, statusInset: 6, bodyIndent: 0, stackIndent: 10 },
+        { x: 0.575, y: 0.348, width: 0.295, angle: 0.013, rule: 0.8, statusInset: 18, bodyIndent: 8, stackIndent: 2 },
+        { x: 0.205, y: 0.625, width: 0.31, angle: 0.012, rule: 0.88, statusInset: 0, bodyIndent: 5, stackIndent: 14 },
+        { x: 0.6, y: 0.67, width: 0.285, angle: -0.015, rule: 0.74, statusInset: 12, bodyIndent: 0, stackIndent: 8 },
       ];
 }
 
@@ -1647,8 +1684,9 @@ function productLinkRows(content: SiteContent, width: number, height: number): P
   return productSlots(width).slice(0, content.products.length).map((slot, index) => ({
     product: content.products[index].name,
     links: content.products[index].links,
-    x: slot.x,
-    y: slot.y + metrics.links / Math.max(1, height),
+    x: slot.x + (slot.stackIndent - Math.sin(slot.angle) * metrics.links) / Math.max(1, width),
+    y: slot.y + (Math.cos(slot.angle) * metrics.links) / Math.max(1, height),
+    angle: slot.angle,
   }));
 }
 
@@ -1765,16 +1803,6 @@ function drawProducts(
     titleY: narrow ? 0.205 : 0.2,
     titleSize: narrow ? 23 : 34,
   });
-  drawChapterIntro(
-    context,
-    locale,
-    content.sections.productsIntro,
-    width * (narrow ? 0.27 : 0.62),
-    height * (narrow ? 0.245 : 0.16),
-    width * (narrow ? 0.56 : 0.24),
-    narrow,
-    2,
-  );
 
   productSlots(width).slice(0, content.products.length).forEach((slot, index) => {
     const product = content.products[index];
@@ -1798,37 +1826,39 @@ function drawProducts(
       family: "display",
     });
     context.font = referenceFont(narrow ? 7.8 : 8.6, 400, true);
-    drawInkLine(context, product.status, entryWidth, metrics.name, {
+    drawInkLine(context, product.status, entryWidth - slot.statusInset, metrics.name, {
       align: "right",
       alpha: 0.78,
       color: AWAKENED_INK,
       maxWidth: entryWidth * 0.38,
       family: "reference",
     });
-    drawLooseRule(context, 0, metrics.rule, entryWidth * 0.92, 311 + index * 23, 0.2);
+    drawLooseRule(context, 0, metrics.rule, entryWidth * slot.rule, 311 + index * 23, 0.2);
 
     context.font = font(locale, narrow ? 9.4 : 10.4);
-    drawWrapped(context, product.tagline, 0, metrics.tagline, entryWidth, metrics.leading, {
+    drawWrapped(context, product.tagline, slot.bodyIndent, metrics.tagline, entryWidth - slot.bodyIndent, metrics.leading, {
       maxLines: metrics.taglineLines,
       color: INK_SOFT,
+      drift: 401 + index * 13,
     });
     if (!narrow && product.highlights[0]) {
       context.save();
       context.fillStyle = "rgba(102, 42, 31, .55)";
-      context.translate(3, metrics.highlight - 3.6);
+      context.translate(3 + slot.bodyIndent, metrics.highlight - 3.6);
       context.rotate(Math.PI / 4);
       context.fillRect(-1.8, -1.8, 3.6, 3.6);
       context.restore();
       context.font = font(locale, 9.4);
-      drawWrapped(context, product.highlights[0], 12, metrics.highlight, entryWidth - 12, 14.5, {
+      drawWrapped(context, product.highlights[0], 12 + slot.bodyIndent, metrics.highlight, entryWidth - 12 - slot.bodyIndent, 14.5, {
         maxLines: 2,
         color: "rgba(53,31,20,.66)",
+        drift: 523 + index * 17,
       });
     }
     context.font = referenceFont(narrow ? 7.8 : 8.4, 400, true);
-    drawInkLine(context, `${copy.tools.toLocaleUpperCase()} · ${product.stack.join(" / ")}`, 0, metrics.stack, {
+    drawInkLine(context, `${copy.tools.toLocaleUpperCase()} · ${product.stack.join(" / ")}`, slot.stackIndent, metrics.stack, {
       alpha: 0.58,
-      maxWidth: entryWidth,
+      maxWidth: entryWidth - slot.stackIndent,
       family: "reference",
     });
     context.restore();
@@ -3197,7 +3227,6 @@ function ScreenReaderChapter({ active, content, locale }: { active: number; cont
     return (
       <>
         <h2>{content.sections.productsTitle}</h2>
-        <p>{content.sections.productsIntro}</p>
         {content.products.map((item) => (
           <article key={item.id}>
             <h3>{item.name}</h3>
@@ -3214,7 +3243,6 @@ function ScreenReaderChapter({ active, content, locale }: { active: number; cont
     return (
       <>
         <h2>{content.sections.workTitle}</h2>
-        <p>{content.sections.workIntro}</p>
         {content.work.map((item) => <article key={item.title}><h3>{item.title}</h3><p>{item.summary}</p><dl><dt>{copy.fit}</dt><dd>{item.fit}</dd><dt>{copy.scope}</dt><dd>{item.scope}</dd><dt>{copy.outcome}</dt><dd>{item.outcome}</dd><dt>{copy.tools}</dt><dd>{item.stack}</dd></dl></article>)}
       </>
     );
@@ -3223,7 +3251,6 @@ function ScreenReaderChapter({ active, content, locale }: { active: number; cont
     return (
       <>
         <h2>{content.sections.careerTitle}</h2>
-        <p>{content.sections.careerIntro}</p>
         {content.career.map((item) => <article key={`${item.company}-${item.period}`}><h3>{item.company}{item.project ? ` (${content.labels.project})` : ""}</h3><p>{item.period} — {item.role}</p><p>{item.summary}</p><ul>{item.details.map((detail) => <li key={detail}>{detail}</li>)}</ul><p>{item.stack}</p></article>)}
       </>
     );
@@ -3234,8 +3261,6 @@ function ScreenReaderChapter({ active, content, locale }: { active: number; cont
       <h2>Ischca</h2>
       <p>{content.hero.lead}</p>
       <p>{content.hero.introduction}</p>
-      <h3>{copy.catalog}</h3>
-      <ul>{content.products.map((item) => <li key={item.id}>{item.name} — {item.kind}</li>)}</ul>
       <h3>{copy.craft}</h3>
       <p>{content.hero.craft}</p>
     </>
@@ -4341,7 +4366,7 @@ export function CanvasGrimoireExperience({
   const returnToSurface = useCallback(() => {
     clearVersoTimers();
     setVersoPhase("recalling");
-    setAnnouncement(locale === "ja" ? "分解されたレイヤーをポートフォリオへ再統合しています。" : "The separated layers are returning to the portfolio.");
+    setAnnouncement(locale === "ja" ? "分解したレイヤーをポートフォリオへ戻している。" : "The separated layers are returning to the portfolio.");
     if (reducedMotionRef.current) {
       setVersoPhase("surface");
       setAnnouncement(COPY[locale].keyboard);
@@ -4914,7 +4939,7 @@ export function CanvasGrimoireExperience({
             {productRows.map((row) => (
               <p
                 className="canvas-grimoire-product-links"
-                style={{ left: `${row.x * 100}%`, top: `${row.y * 100}%` }}
+                style={{ left: `${row.x * 100}%`, top: `${row.y * 100}%`, rotate: `${row.angle}rad`, transformOrigin: "0 50%" }}
                 key={row.product}
               >
                 {row.links.map((link) => (

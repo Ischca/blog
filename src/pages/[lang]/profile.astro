@@ -1,5 +1,5 @@
 ---
-import { CONTENT_UPDATED, SOCIAL_LINKS, siteContent, type Locale, type ProductEmblem } from "../../content/site";
+import { CONTENT_UPDATED, SOCIAL_LINKS, siteContent, type Locale } from "../../content/site";
 import "../../styles/global.css";
 
 export function getStaticPaths() {
@@ -24,7 +24,6 @@ const socialImage = publicSiteUrl
   : assetUrl("og-ischca-grimoire.webp");
 const localeCode = lang === "ja" ? "ja_JP" : "en_US";
 const alternateLocaleCode = lang === "ja" ? "en_US" : "ja_JP";
-const roman = ["I", "II", "III", "IV", "V", "VI"];
 const external = { target: "_blank", rel: "noopener noreferrer" };
 
 const sections = [
@@ -41,48 +40,6 @@ const facts = [
   { label: content.hero.focusLabel, value: content.hero.focusValue },
   { label: content.hero.communicationLabel, value: content.hero.communicationValue },
 ];
-
-// Ink emblems share the grimoire's product marks so both editions read as
-// one book. Each path is drawn in a 48×48 box with a single hairline stroke.
-const emblemPaths: Record<ProductEmblem, string[]> = {
-  lens: [
-    "M24 9a15 15 0 1 1 0 30a15 15 0 1 1 0-30",
-    "M24 3v10M24 35v10M3 24h10M35 24h10",
-    "M18 18l-4 0 0 4M30 18l4 0 0 4M18 30l-4 0 0-4M30 30l4 0 0-4",
-  ],
-  quill: [
-    "M38 6c-12 3-21 13-25 27l-3 9",
-    "M38 6c-2 10-9 19-20 24",
-    "M24 22l-6 1M29 15l-6 1",
-    "M10 44h28",
-  ],
-  prism: [
-    "M24 8l15 28H9z",
-    "M2 26l14-3",
-    "M31 22l15-9M32 25l14-2M32 28l13 6",
-  ],
-  branch: [
-    "M4 30c7-1 10-11 18-11",
-    "M22 19c7 0 9-10 20-9",
-    "M22 19c7 1 10 13 20 13",
-    "M4 30a2 2 0 1 0 0.1 0M42 10a2 2 0 1 0 0.1 0M42 32a2 2 0 1 0 0.1 0",
-  ],
-};
-
-const fontFaceCss = [
-  ["Ischca IM Fell English", "fonts/IMFellEnglish-Portfolio.woff", "normal", 400],
-  ["Ischca IM Fell English", "fonts/IMFellEnglish-Portfolio-Italic.woff", "italic", 400],
-  ["Ischca IM Fell English SC", "fonts/IMFellEnglishSC-Portfolio.woff", "normal", 400],
-  ["Ischca Yuji Syuku", "fonts/YujiSyuku-Portfolio.woff", "normal", 400],
-  ["Ischca Noto Serif JP", "fonts/NotoSerifJP-Portfolio.woff", "normal", 400],
-  ["Ischca Noto Serif JP", "fonts/NotoSerifJP-Portfolio-Semibold.woff", "normal", 600],
-].map(([family, path, style, weight]) => `@font-face{font-family:"${family}";src:url("${assetUrl(String(path))}") format("woff");font-style:${style};font-weight:${weight};font-display:swap;}`).join("");
-// The paper is generated rather than tiled from the grimoire's photograph:
-// stitched turbulence repeats without a visible seam on a long page.
-const svgUrl = (svg: string) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-const paperGrain = "<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.32 0 0 0 0 0.21 0 0 0 0 0.12 0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(#g)' opacity='0.4'/></svg>";
-const paperMottle = "<svg xmlns='http://www.w3.org/2000/svg' width='960' height='960'><filter id='m'><feTurbulence type='fractalNoise' baseFrequency='0.0055' numOctaves='3' seed='11' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.47 0 0 0 0 0.32 0 0 0 0 0.17 0 0 0 1.1 -0.42'/></filter><rect width='100%' height='100%' filter='url(#m)' opacity='0.32'/></svg>";
-const textureCss = `:root{--paper-grain:${svgUrl(paperGrain)};--paper-mottle:${svgUrl(paperMottle)};}`;
 
 const structuredData = {
   "@context": "https://schema.org",
@@ -101,7 +58,7 @@ const structuredData = {
 };
 ---
 
-<html lang={lang}>
+<html lang={lang} class={`profile-root profile-root--${lang}`}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -109,7 +66,9 @@ const structuredData = {
     <meta name="description" content={content.meta.profileDescription} />
     <meta name="author" content="Ischca" />
     <meta name="robots" content="index,follow" />
-    <meta name="theme-color" content="#0c0907" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#111113" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href={assetUrl("favicon.svg?v=1")} type="image/svg+xml" />
     <link rel="icon" href={assetUrl("favicon-32x32.png?v=1")} sizes="32x32" type="image/png" />
     <link rel="apple-touch-icon" href={assetUrl("apple-touch-icon.png?v=1")} sizes="180x180" />
@@ -131,43 +90,30 @@ const structuredData = {
     <meta name="twitter:title" content={content.meta.profileTitle} />
     <meta name="twitter:description" content={content.meta.profileDescription} />
     <meta name="twitter:image" content={socialImage} />
-    <link rel="preload" href={assetUrl(lang === "ja" ? "fonts/NotoSerifJP-Portfolio.woff" : "fonts/IMFellEnglish-Portfolio.woff")} as="font" type="font/woff" crossorigin="anonymous" />
-    <style set:html={fontFaceCss + textureCss}></style>
     <script is:inline type="application/ld+json" set:html={JSON.stringify(structuredData)}></script>
   </head>
-  <body class={`profile profile--${lang}`}>
+  <body class="profile">
     <a class="skip-link" href="#main">{lang === "ja" ? "本文へ移動" : "Skip to content"}</a>
 
-    <header class="masthead">
-      <a class="masthead-mark" href={pageUrl(lang)} aria-label={content.labels.viewGrimoire}>
-        <img src={assetUrl("favicon.svg?v=1")} alt="" width="28" height="28" />
-        <span>Ischca</span>
-      </a>
-      <nav class="masthead-nav" aria-label={lang === "ja" ? "ページ内の章" : "Sections"}>
-        {sections.map((section, index) => (
-          <a href={`#${section.id}`}><span class="masthead-numeral" aria-hidden="true">{roman[index]}</span>{section.label}</a>
-        ))}
-      </nav>
-      <div class="masthead-tools">
-        <a href={pageUrl(alternateLang, "profile/")} lang={alternateLang} hreflang={alternateLang}>{content.labels.language}</a>
-        <a href={pageUrl(lang)}>{content.labels.viewGrimoire}</a>
+    <header class="site-header">
+      <div class="container site-header-inner">
+        <a class="brand" href="#top">Ischca</a>
+        <nav class="site-nav" aria-label={lang === "ja" ? "ページ内の項目" : "Sections"}>
+          {sections.map((section) => <a href={`#${section.id}`}>{section.label}</a>)}
+        </nav>
+        <div class="site-tools">
+          <a href={pageUrl(alternateLang, "profile/")} lang={alternateLang} hreflang={alternateLang}>{content.labels.language}</a>
+          <a href={pageUrl(lang)}>{content.labels.viewGrimoire}</a>
+        </div>
       </div>
     </header>
 
-    <main id="main" class="folio">
-      <section class="title-page" aria-labelledby="title">
-        <p class="kicker">{content.hero.eyebrow}</p>
-        <h1 id="title">Ischca</h1>
-        <p class="title-role">{content.hero.role}</p>
-        <svg class="fleuron" viewBox="0 0 240 20" aria-hidden="true">
-          <path d="M120 10c-18-9-34 8-54 2S28 4 8 10M120 10c18-9 34 8 54 2s38-8 58-2" />
-          <circle cx="120" cy="10" r="2.4" />
-          <ellipse cx="88" cy="8" rx="5" ry="1.8" transform="rotate(-18 88 8)" />
-          <ellipse cx="152" cy="8" rx="5" ry="1.8" transform="rotate(18 152 8)" />
-          <ellipse cx="64" cy="12" rx="4" ry="1.5" transform="rotate(14 64 12)" />
-          <ellipse cx="176" cy="12" rx="4" ry="1.5" transform="rotate(-14 176 12)" />
-        </svg>
-        <p class="title-lead">{content.hero.introduction}</p>
+    <main id="main" class="container">
+      <section id="top" class="hero" aria-labelledby="hero-title">
+        <p class="eyebrow">{content.hero.eyebrow}</p>
+        <h1 id="hero-title">Ischca</h1>
+        <p class="hero-role">{content.hero.role}</p>
+        <p class="hero-intro">{content.hero.introduction}</p>
         <dl class="facts">
           {facts.map((fact) => (
             <div>
@@ -176,52 +122,39 @@ const structuredData = {
             </div>
           ))}
         </dl>
-
-        <nav class="catalog" aria-labelledby="catalog-title">
-          <p id="catalog-title" class="catalog-title">{content.sections.productsTitle}</p>
-          <ol>
-            {content.products.map((product, index) => (
-              <li>
-                <a href={`#${product.id}`}>
-                  <span class="catalog-numeral" aria-hidden="true">{roman[index]}</span>
-                  <span class="catalog-name">{product.name}</span>
-                  <span class="catalog-kind">{product.kind}</span>
-                </a>
-              </li>
-            ))}
-          </ol>
-        </nav>
-
-        <ul class="profiles" aria-label={lang === "ja" ? "公開プロフィール" : "Public profiles"}>
+        <ul class="buttons" aria-label={lang === "ja" ? "公開プロフィール" : "Public profiles"}>
           {SOCIAL_LINKS.map((link) => (
             <li><a href={link.href} {...external}>{link.label}</a></li>
           ))}
         </ul>
       </section>
 
-      <section id="products" class="chapter" aria-labelledby="products-title">
-        <header class="chapter-head">
-          <p class="kicker"><span aria-hidden="true">I · </span>{content.sections.productsKicker}</p>
+      <section id="products" class="section" aria-labelledby="products-title">
+        <header class="section-head">
+          <p class="eyebrow">{content.sections.productsKicker}</p>
           <h2 id="products-title">{content.sections.productsTitle}</h2>
-          <p class="chapter-intro">{content.sections.productsIntro}</p>
         </header>
         <div class="product-grid">
-          {content.products.map((product) => (
+          {content.products.map((product, index) => (
             <article id={product.id} class="product" aria-labelledby={`${product.id}-name`}>
-              <header class="product-head">
-                <svg class="emblem" viewBox="0 0 48 48" aria-hidden="true">
-                  {emblemPaths[product.emblem].map((d) => <path d={d} />)}
-                </svg>
-                <div>
-                  <p class="product-meta">
-                    <span>{product.kind}</span>
-                    <span class="product-status">{product.status}</span>
-                  </p>
-                  <h3 id={`${product.id}-name`}>{product.name}</h3>
-                </div>
-              </header>
+              <a class="product-media" href={product.links[0].href} {...external}>
+                <img
+                  src={assetUrl(product.image.src)}
+                  alt={product.image.alt}
+                  width={product.image.width}
+                  height={product.image.height}
+                  loading={index < 2 ? "eager" : "lazy"}
+                  decoding="async"
+                />
+              </a>
+              <div class="product-body">
+              <div class="product-head">
+                <h3 id={`${product.id}-name`}>{product.name}</h3>
+                <span class="status">{product.status}</span>
+              </div>
+              <p class="product-kind">{product.kind}</p>
               <p class="product-tagline">{product.tagline}</p>
-              <ul class="product-highlights bullets">
+              <ul class="points">
                 {product.highlights.map((highlight) => <li>{highlight}</li>)}
               </ul>
               <p class="product-role"><span class="label">{content.labels.role}</span>{product.role}</p>
@@ -233,16 +166,16 @@ const structuredData = {
                   <a href={link.href} {...external}>{link.label}<span aria-hidden="true"> ↗</span></a>
                 ))}
               </p>
+              </div>
             </article>
           ))}
         </div>
       </section>
 
-      <section id="skills" class="chapter" aria-labelledby="skills-title">
-        <header class="chapter-head">
-          <p class="kicker"><span aria-hidden="true">II · </span>{content.sections.skillsKicker}</p>
+      <section id="skills" class="section" aria-labelledby="skills-title">
+        <header class="section-head">
+          <p class="eyebrow">{content.sections.skillsKicker}</p>
           <h2 id="skills-title">{content.sections.skillsTitle}</h2>
-          <p class="chapter-intro">{content.sections.skillsIntro}</p>
         </header>
         <div class="skill-grid">
           {content.skills.map((group) => (
@@ -257,24 +190,23 @@ const structuredData = {
         </div>
       </section>
 
-      <section id="selected-work" class="chapter" aria-labelledby="selected-work-title">
-        <header class="chapter-head">
-          <p class="kicker"><span aria-hidden="true">III · </span>{content.sections.caseStudiesKicker}</p>
+      <section id="selected-work" class="section" aria-labelledby="selected-work-title">
+        <header class="section-head">
+          <p class="eyebrow">{content.sections.caseStudiesKicker}</p>
           <h2 id="selected-work-title">{content.sections.caseStudiesTitle}</h2>
-          <p class="chapter-intro">{content.sections.caseStudiesIntro}</p>
         </header>
-        <div class="case-list">
+        <div class="rows">
           {content.caseStudies.map((study) => (
-            <article class="case">
-              <div class="case-meta">
-                <p class="case-organization">{study.organization}</p>
-                {study.period && <p class="case-period">{study.period}</p>}
-                <p class="case-role">{study.role}</p>
+            <article class="row">
+              <div class="row-meta">
+                <p class="row-org">{study.organization}</p>
+                {study.period && <p class="row-period">{study.period}</p>}
+                <p class="row-role">{study.role}</p>
               </div>
-              <div class="case-body">
+              <div class="row-body">
                 <h3>{study.title}</h3>
                 <p>{study.summary}</p>
-                <ul class="bullets">
+                <ul class="points">
                   {study.highlights.map((highlight) => <li>{highlight}</li>)}
                 </ul>
                 <ul class="chips" aria-label={content.labels.stack}>
@@ -286,43 +218,44 @@ const structuredData = {
         </div>
       </section>
 
-      <section id="career" class="chapter" aria-labelledby="career-title">
-        <header class="chapter-head">
-          <p class="kicker"><span aria-hidden="true">IV · </span>{content.sections.careerKicker}</p>
+      <section id="career" class="section" aria-labelledby="career-title">
+        <header class="section-head">
+          <p class="eyebrow">{content.sections.careerKicker}</p>
           <h2 id="career-title">{content.sections.careerTitle}</h2>
-          <p class="chapter-intro">{content.sections.careerIntro}</p>
         </header>
-        <ol class="timeline">
+        <ol class="rows">
           {content.career.map((item) => (
-            <li class="timeline-entry">
-              <p class="timeline-period">{item.period}</p>
-              <div class="timeline-body">
+            <li class="row">
+              <div class="row-meta">
+                <p class="row-period">{item.period}</p>
+              </div>
+              <div class="row-body">
                 <h3>
                   {item.company}
                   {item.project && <span class="tag">{content.labels.project}</span>}
                 </h3>
-                <p class="timeline-role">{item.role}</p>
+                <p class="row-role">{item.role}</p>
                 <p>{item.summary}</p>
-                <ul class="bullets">
+                <ul class="points">
                   {item.details.map((detail) => <li>{detail}</li>)}
                 </ul>
-                <p class="timeline-stack">{item.stack}</p>
+                <p class="row-stack">{item.stack}</p>
               </div>
             </li>
           ))}
         </ol>
       </section>
 
-      <section id="contact" class="chapter" aria-labelledby="contact-title">
-        <header class="chapter-head">
-          <p class="kicker"><span aria-hidden="true">V · </span>{content.sections.contactKicker}</p>
+      <section id="contact" class="section" aria-labelledby="contact-title">
+        <header class="section-head">
+          <p class="eyebrow">{content.sections.contactKicker}</p>
           <h2 id="contact-title">{content.sections.contactTitle}</h2>
         </header>
         <div class="contact">
-          <div class="contact-letter">
+          <div class="contact-main">
             <p>{content.hero.availability}</p>
             <p>{content.sections.contactIntro}</p>
-            <ul class="profiles">
+            <ul class="buttons">
               {SOCIAL_LINKS.map((link) => (
                 <li><a href={link.href} {...external}>{link.label}</a></li>
               ))}
@@ -330,7 +263,6 @@ const structuredData = {
           </div>
           <div class="services">
             <h3>{content.sections.workTitle}</h3>
-            <p class="services-intro">{content.sections.workIntro}</p>
             <dl>
               {content.work.map((item) => (
                 <div>
@@ -344,327 +276,246 @@ const structuredData = {
       </section>
     </main>
 
-    <footer class="colophon">
-      <p>© {CONTENT_UPDATED.slice(0, 4)} Ischca</p>
-      <p>{content.labels.updated}: <time datetime={CONTENT_UPDATED}>{CONTENT_UPDATED}</time></p>
-      <p><a href={pageUrl(lang)}>{content.labels.viewGrimoire}</a></p>
+    <footer class="site-footer">
+      <div class="container site-footer-inner">
+        <p>© {CONTENT_UPDATED.slice(0, 4)} Ischca</p>
+        <p>{content.labels.updated}: <time datetime={CONTENT_UPDATED}>{CONTENT_UPDATED}</time></p>
+        <p><a href={pageUrl(lang)}>{content.labels.viewGrimoire}</a></p>
+      </div>
     </footer>
   </body>
 </html>
 
 <style is:global>
-  .profile {
-    --ink: #2b1a11;
-    --ink-soft: #4d3427;
-    --ink-faint: #6e5546;
-    --rubric: #8a3424;
-    --rule: rgba(64, 38, 24, 0.22);
-    --vellum: #f1e8d6;
-    --chip: rgba(255, 251, 241, 0.55);
-    --serif-ja: "Ischca Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", serif;
-    --serif-en: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-    --display-ja: "Ischca Yuji Syuku", "Ischca Noto Serif JP", "Hiragino Mincho ProN", serif;
-    --display-en: "Ischca IM Fell English", "Iowan Old Style", Georgia, serif;
-    --small-caps: "Ischca IM Fell English SC", "Iowan Old Style", Georgia, serif;
+  html.profile-root {
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --text: #1c1b1f;
+    --muted: #57565e;
+    --faint: #85848c;
+    --border: #e5e4e0;
+    --accent: #a9432c;
+    --accent-soft: rgba(169, 67, 44, 0.09);
+    --chip: #f1f0ec;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     color-scheme: light;
+    background: var(--bg);
+    scroll-behavior: smooth;
+    scroll-padding-top: 76px;
+  }
+  html.profile-root--ja {
+    --font-sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    html.profile-root {
+      --bg: #111113;
+      --surface: #18181b;
+      --text: #ececee;
+      --muted: #a9a8b0;
+      --faint: #7f7e87;
+      --border: #2a2a2f;
+      --accent: #e8866b;
+      --accent-soft: rgba(232, 134, 107, 0.12);
+      --chip: #232328;
+      color-scheme: dark;
+    }
+  }
+
+  .profile {
     margin: 0;
-    color: var(--ink);
-    background:
-      radial-gradient(120% 60% at 50% 0%, #241811 0%, #0c0907 70%) fixed,
-      #0c0907;
-    font-family: var(--serif-en);
-    font-size: 17px;
-    line-height: 1.75;
+    color: var(--text);
+    background: var(--bg);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.7;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
-  .profile--ja {
-    font-family: var(--serif-ja);
-    font-size: 16px;
-    line-height: 1.9;
+  .profile-root--ja .profile {
+    line-height: 1.85;
+    letter-spacing: 0.02em;
     line-break: strict;
-    word-break: normal;
+    /* Break between phrases, not inside words such as 改善, where the browser
+       supports it; others keep the default character breaks. */
+    word-break: auto-phrase;
     overflow-wrap: anywhere;
   }
   .profile a {
     color: inherit;
-    text-decoration-color: rgba(138, 52, 36, 0.45);
-    text-decoration-thickness: 1px;
-    text-underline-offset: 0.24em;
-    transition: color 160ms ease, text-decoration-color 160ms ease;
-  }
-  .profile a:hover {
-    color: var(--rubric);
-    text-decoration-color: currentColor;
   }
   .profile a:focus-visible {
-    outline: 2px solid var(--rubric);
-    outline-offset: 3px;
-    border-radius: 2px;
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
   }
   .profile ::selection {
-    color: var(--ink);
-    background: rgba(181, 119, 69, 0.32);
+    background: var(--accent-soft);
+  }
+  .profile h1,
+  .profile h2,
+  .profile h3 {
+    margin: 0;
+    line-height: 1.3;
+    letter-spacing: 0;
+  }
+  .profile p {
+    margin: 0;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 1040px;
+    margin: 0 auto;
+    padding-inline: 24px;
+    box-sizing: border-box;
   }
 
   .skip-link {
     position: absolute;
     left: 16px;
     top: -60px;
-    z-index: 10;
+    z-index: 20;
     padding: 8px 14px;
-    color: var(--ink);
-    background: var(--vellum);
+    border-radius: 8px;
+    color: var(--text);
+    background: var(--surface);
   }
   .skip-link:focus {
     top: 12px;
   }
 
-  .masthead {
+  .site-header {
     position: sticky;
     top: 0;
-    z-index: 5;
+    z-index: 10;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: saturate(1.4) blur(10px);
+  }
+  .site-header-inner {
     display: flex;
     align-items: center;
-    gap: 20px;
-    max-width: 1180px;
-    margin: 0 auto;
-    padding: 14px clamp(16px, 3vw, 30px);
-    color: rgba(239, 228, 208, 0.82);
-    background: linear-gradient(rgba(12, 9, 7, 0.94), rgba(12, 9, 7, 0.78));
-    backdrop-filter: blur(6px);
-    font-family: var(--small-caps);
-    font-size: 0.82rem;
-    letter-spacing: 0.08em;
+    gap: 24px;
+    min-height: 60px;
   }
-  .profile--ja .masthead {
-    font-family: var(--serif-ja);
-    letter-spacing: 0.04em;
-  }
-  .masthead a {
+  .brand {
+    flex: none;
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
     text-decoration: none;
   }
-  .masthead a:hover {
-    color: #f4e7cf;
-  }
-  .masthead-mark {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    flex: none;
-    font-family: var(--display-en);
-    font-size: 1.2rem;
-    letter-spacing: 0.03em;
-  }
-  .masthead-mark img {
-    display: block;
-  }
-  .masthead-nav {
+  .site-nav {
     display: flex;
-    flex-wrap: wrap;
-    gap: 4px 18px;
+    gap: 4px 20px;
     margin-inline: auto;
+    font-size: 0.92rem;
   }
-  .masthead-numeral {
-    margin-right: 6px;
-    color: rgba(214, 140, 112, 0.85);
-    font-family: var(--small-caps);
-    font-size: 0.78em;
+  .site-nav a,
+  .site-tools a {
+    color: var(--muted);
+    text-decoration: none;
+    white-space: nowrap;
   }
-  .masthead-tools {
+  .site-nav a:hover,
+  .site-tools a:hover {
+    color: var(--text);
+  }
+  .site-tools {
     display: flex;
-    gap: 16px;
     flex: none;
+    gap: 16px;
+    font-size: 0.88rem;
   }
 
-  .folio {
-    position: relative;
-    max-width: 1120px;
-    margin: 8px auto 0;
-    padding: clamp(28px, 6vw, 84px) clamp(20px, 6.5vw, 92px) clamp(36px, 6vw, 72px);
-    background-color: var(--vellum);
-    background-image:
-      radial-gradient(130% 70% at 50% 0%, rgba(255, 251, 240, 0.6), rgba(255, 251, 240, 0) 62%),
-      var(--paper-mottle),
-      var(--paper-grain);
-    background-size: 100% 100%, 960px 960px, 280px 280px;
-    background-repeat: no-repeat, repeat, repeat;
-    border-radius: 3px;
-    box-shadow:
-      0 30px 90px rgba(0, 0, 0, 0.55),
-      inset 0 0 120px rgba(120, 82, 50, 0.16);
-  }
-
-  .kicker {
-    margin: 0 0 6px;
-    color: var(--rubric);
-    font-family: var(--small-caps);
-    font-size: 0.86rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-
-  .title-page {
-    display: grid;
-    justify-items: center;
-    padding-bottom: clamp(24px, 4vw, 44px);
-    text-align: center;
-  }
-  .title-page h1 {
-    margin: 0;
-    font-family: var(--display-en);
-    font-size: clamp(3.4rem, 9vw, 6.2rem);
-    font-weight: 400;
-    line-height: 1;
-    letter-spacing: 0.01em;
-  }
-  .title-role {
-    margin: 14px 0 0;
-    color: var(--ink-soft);
-    font-size: 1.05rem;
-    letter-spacing: 0.04em;
-  }
-  .fleuron {
-    width: min(240px, 60%);
-    margin: 22px 0 18px;
-    fill: none;
-    stroke: rgba(64, 38, 24, 0.5);
-    stroke-width: 1;
-  }
-  .fleuron circle,
-  .fleuron ellipse {
-    fill: rgba(64, 38, 24, 0.42);
-    stroke: none;
-  }
-  .title-lead {
-    max-width: 40em;
-    margin: 0;
-    color: var(--ink-soft);
-  }
-  .facts {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px 34px;
-    margin: 26px 0 0;
-  }
-  .facts div {
-    display: grid;
-    gap: 2px;
-  }
-  .facts dt {
-    color: var(--ink-faint);
-    font-family: var(--small-caps);
+  .eyebrow {
+    color: var(--accent);
     font-size: 0.78rem;
+    font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
   }
+
+  .hero {
+    padding: clamp(48px, 9vw, 104px) 0 clamp(40px, 6vw, 64px);
+    border-bottom: 1px solid var(--border);
+  }
+  .hero h1 {
+    margin-top: 10px;
+    font-size: clamp(2.6rem, 7vw, 3.75rem);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.05;
+  }
+  .hero-role {
+    margin-top: 12px !important;
+    color: var(--muted);
+    font-size: 1.12rem;
+    font-weight: 500;
+  }
+  .hero-intro {
+    max-width: 40em;
+    margin-top: 22px !important;
+    font-size: 1.05rem;
+  }
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, max-content));
+    gap: 12px 40px;
+    margin: 28px 0 0;
+  }
+  .facts dt {
+    color: var(--faint);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
   .facts dd {
-    margin: 0;
-    font-size: 0.98rem;
+    margin: 2px 0 0;
+    font-weight: 600;
   }
-
-  .catalog {
-    width: min(100%, 760px);
-    margin-top: clamp(30px, 4vw, 46px);
-    padding-top: 22px;
-    border-top: 1px solid var(--rule);
-  }
-  .catalog-title {
-    margin: 0 0 10px;
-    color: var(--rubric);
-    font-family: var(--small-caps);
-    font-size: 0.86rem;
-    letter-spacing: 0.14em;
-  }
-  .catalog ol {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px 28px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    text-align: left;
-  }
-  .catalog a {
-    display: grid;
-    grid-template-columns: 2.2em auto 1fr;
-    align-items: baseline;
-    gap: 10px;
-    padding: 8px 4px;
-    border-bottom: 1px dotted var(--rule);
-    text-decoration: none;
-  }
-  .catalog-numeral {
-    color: var(--rubric);
-    font-family: var(--small-caps);
-    font-size: 0.85rem;
-  }
-  .catalog-name {
-    font-family: var(--display-en);
-    font-size: 1.24rem;
-  }
-  .catalog-kind {
-    overflow: hidden;
-    color: var(--ink-faint);
-    font-size: 0.86rem;
-    text-align: right;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .profiles {
+  .buttons {
     display: flex;
     flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px 22px;
-    margin: 26px 0 0;
+    gap: 8px;
+    margin: 28px 0 0;
     padding: 0;
     list-style: none;
-    font-family: var(--small-caps);
-    letter-spacing: 0.1em;
+  }
+  .buttons a {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 16px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: border-color 150ms ease, color 150ms ease;
+  }
+  .buttons a:hover {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
-  .chapter {
-    padding-top: clamp(44px, 6vw, 72px);
-    border-top: 1px solid var(--rule);
-    margin-top: clamp(30px, 4vw, 48px);
+  .section {
+    padding-top: clamp(56px, 8vw, 88px);
   }
-  .chapter-head {
-    display: grid;
-    gap: 4px;
-    margin-bottom: clamp(24px, 3.4vw, 40px);
+  .section-head {
+    margin-bottom: 28px;
   }
-  .chapter-head h2 {
-    margin: 0;
-    font-family: var(--display-en);
-    font-size: clamp(2rem, 4.2vw, 2.9rem);
-    font-weight: 400;
-    line-height: 1.15;
-  }
-  .profile--ja .chapter-head h2 {
-    font-family: var(--display-ja);
-    letter-spacing: 0.06em;
-  }
-  .chapter-intro {
-    max-width: 42em;
-    margin: 8px 0 0;
-    color: var(--ink-soft);
+  .section-head h2 {
+    margin-top: 6px;
+    font-size: clamp(1.6rem, 3.4vw, 2rem);
+    font-weight: 700;
   }
 
   .label {
-    display: block;
-    margin-bottom: 2px;
-    color: var(--ink-faint);
-    font-family: var(--small-caps);
-    font-size: 0.78rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-  .profile--ja .label {
-    font-family: var(--serif-ja);
+    margin-right: 0.6em;
+    color: var(--text);
     font-weight: 600;
-    letter-spacing: 0.08em;
   }
 
   .chips {
@@ -676,376 +527,320 @@ const structuredData = {
     list-style: none;
   }
   .chips li {
-    padding: 1px 9px 2px;
-    border: 1px solid rgba(64, 38, 24, 0.28);
-    border-radius: 2px;
-    color: var(--ink-soft);
+    padding: 2px 9px;
+    border-radius: 6px;
+    color: var(--muted);
     background: var(--chip);
-    font-size: 0.82rem;
-    line-height: 1.6;
+    font-size: 0.8rem;
+    line-height: 1.7;
     white-space: nowrap;
+  }
+
+  .points {
+    margin: 12px 0 0;
+    padding-left: 1.2em;
+    color: var(--muted);
+  }
+  .points li {
+    margin: 4px 0;
+    padding-left: 0.15em;
+  }
+  .points li::marker {
+    color: var(--accent);
   }
 
   .product-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: clamp(30px, 4vw, 52px) clamp(28px, 4vw, 56px);
+    gap: 20px;
   }
   .product {
     display: flex;
     flex-direction: column;
-    padding: clamp(20px, 2.4vw, 28px);
-    border: 1px solid rgba(64, 38, 24, 0.2);
-    background: rgba(255, 252, 244, 0.38);
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset;
-    scroll-margin-top: 90px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    scroll-margin-top: 84px;
+  }
+  .product-media {
+    position: relative;
+    display: block;
+    flex: none;
+    aspect-ratio: 1200 / 630;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+    background: var(--chip);
+  }
+  /* Absolutely placed so the picture's own 630px height never becomes the
+     flex item's minimum height; the frame is sized by its ratio alone. */
+  .product-media img {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    transition: transform 320ms ease;
+  }
+  .product-media:hover img {
+    transform: scale(1.025);
+  }
+  .product-media:focus-visible {
+    outline-offset: -3px;
+  }
+  .product-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    padding: 22px 24px 24px;
   }
   .product-head {
-    display: grid;
-    grid-template-columns: 48px 1fr;
-    align-items: center;
-    gap: 16px;
-  }
-  .emblem {
-    width: 48px;
-    height: 48px;
-    fill: none;
-    stroke: var(--rubric);
-    stroke-width: 1.3;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .product-meta {
     display: flex;
-    flex-direction: column;
-    gap: 0;
-    margin: 0;
-    line-height: 1.55;
-    color: var(--ink-faint);
-    font-size: 0.82rem;
-    letter-spacing: 0.02em;
-  }
-  .product-status {
-    color: var(--rubric);
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
   }
   .product h3 {
-    margin: 0;
-    font-family: var(--display-en);
-    font-size: clamp(1.8rem, 3vw, 2.2rem);
-    font-weight: 400;
-    line-height: 1.1;
+    font-size: 1.4rem;
+    font-weight: 700;
+  }
+  .status {
+    padding: 3px 9px;
+    border-radius: 999px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+  .product-kind {
+    margin-top: 2px !important;
+    color: var(--faint);
+    font-size: 0.86rem;
   }
   .product-tagline {
-    margin: 16px 0 0;
-    font-size: 1.04em;
-  }
-  .bullets {
-    margin: 12px 0 0;
-    padding: 0;
-    list-style: none;
-    color: var(--ink-soft);
-  }
-  .bullets li {
-    position: relative;
-    margin: 4px 0;
-    padding-left: 1.15em;
-  }
-  .bullets li::before {
-    content: "";
-    position: absolute;
-    left: 0.2em;
-    top: 0.78em;
-    top: calc(0.5lh - 2.5px);
-    width: 5px;
-    height: 5px;
-    background: var(--rubric);
-    opacity: 0.72;
-    transform: rotate(45deg);
+    margin-top: 14px !important;
   }
   .product-role {
-    margin: 16px 0 0;
-    color: var(--ink-soft);
-    font-size: 0.94em;
+    margin-top: 14px !important;
+    color: var(--muted);
+    font-size: 0.92rem;
   }
   .product-links {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 22px;
-    margin: auto 0 0;
+    gap: 6px 20px;
+    margin-top: auto !important;
     padding-top: 18px;
-    font-family: var(--small-caps);
-    letter-spacing: 0.08em;
+    font-size: 0.92rem;
+    font-weight: 600;
   }
-  .profile--ja .product-links {
-    font-family: var(--serif-ja);
-    letter-spacing: 0.04em;
+  .product-links a,
+  .site-footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .product-links a:hover,
+  .site-footer a:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
   }
 
   .skill-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-    gap: 28px clamp(24px, 3vw, 40px);
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
+    gap: 28px 36px;
   }
   .skill {
-    padding-top: 14px;
-    border-top: 2px solid rgba(138, 52, 36, 0.38);
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
   }
   .skill h3 {
-    margin: 0;
-    font-size: 1.12rem;
-    font-weight: 600;
+    font-size: 1.05rem;
+    font-weight: 700;
   }
   .skill .chips {
     margin-top: 10px;
   }
   .skill-evidence {
-    margin: 12px 0 0;
-    color: var(--ink-soft);
-    font-size: 0.9em;
-    line-height: 1.75;
+    margin-top: 12px !important;
+    color: var(--muted);
+    font-size: 0.9rem;
   }
 
-  .case-list {
-    display: grid;
-    gap: clamp(30px, 4vw, 44px);
-  }
-  .case {
-    display: grid;
-    grid-template-columns: minmax(176px, 0.32fr) 1fr;
-    gap: clamp(18px, 3vw, 44px);
-  }
-  .case-meta p {
-    margin: 0;
-  }
-  .case-organization {
-    font-family: var(--display-en);
-    font-size: 1.5rem;
-    line-height: 1.2;
-  }
-  .case-period,
-  .case-role {
-    color: var(--ink-faint);
-    font-size: 0.88rem;
-  }
-  .case-role {
-    margin-top: 4px !important;
-    color: var(--rubric);
-  }
-  .case-role,
-  .timeline-role,
-  .product-meta span,
-  .facts dd {
-    word-break: keep-all;
-    overflow-wrap: anywhere;
-  }
-  .case-body h3 {
-    margin: 0;
-    font-size: 1.2rem;
-    font-weight: 600;
-    line-height: 1.5;
-  }
-  .case-body > p {
-    margin: 8px 0 0;
-  }
-
-  .timeline {
-    display: grid;
-    gap: 0;
+  .rows {
     margin: 0;
     padding: 0;
     list-style: none;
   }
-  .timeline-entry {
+  .row {
     display: grid;
-    grid-template-columns: minmax(176px, 0.32fr) 1fr;
-    gap: clamp(18px, 3vw, 44px);
-    padding: 22px 0;
-    border-bottom: 1px dotted var(--rule);
+    grid-template-columns: minmax(170px, 0.3fr) 1fr;
+    gap: 8px 40px;
+    padding: 26px 0;
+    border-top: 1px solid var(--border);
   }
-  .timeline-entry:first-child {
-    padding-top: 0;
+  .row-meta p + p {
+    margin-top: 2px;
   }
-  .timeline-period {
-    margin: 0;
-    color: var(--ink-faint);
-    font-family: var(--serif-en);
-    font-size: 0.92rem;
-    letter-spacing: 0.04em;
-    font-variant-numeric: lining-nums tabular-nums;
+  .row-org {
+    font-size: 1.05rem;
+    font-weight: 700;
   }
-  .timeline-body h3 {
+  .row-period {
+    color: var(--faint);
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .row-role {
+    color: var(--accent);
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .row-body h3 {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px 12px;
-    margin: 0;
-    font-family: var(--display-en);
-    font-size: 1.5rem;
-    font-weight: 400;
-    line-height: 1.2;
+    align-items: center;
+    gap: 4px 10px;
+    font-size: 1.12rem;
+    font-weight: 700;
+  }
+  .row-body h3 + p,
+  .row-body .row-role + p {
+    margin-top: 6px;
+  }
+  .row-body .row-role {
+    margin-top: 2px;
+  }
+  .row-stack {
+    margin-top: 12px !important;
+    color: var(--faint);
+    font-size: 0.86rem;
   }
   .tag {
-    padding: 0 8px;
-    border: 1px solid rgba(138, 52, 36, 0.4);
-    border-radius: 2px;
-    color: var(--rubric);
-    font-family: var(--small-caps);
+    padding: 1px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
     font-size: 0.72rem;
-    letter-spacing: 0.1em;
-  }
-  .profile--ja .tag {
-    font-family: var(--serif-ja);
-  }
-  .timeline-role {
-    margin: 2px 0 6px;
-    color: var(--rubric);
-    font-size: 0.92rem;
-  }
-  .timeline-body > p:not(.timeline-role):not(.timeline-stack) {
-    margin: 0;
-  }
-  .timeline-stack {
-    margin: 10px 0 0;
-    color: var(--ink-faint);
-    font-size: 0.86rem;
+    font-weight: 600;
   }
 
   .contact {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: clamp(28px, 4vw, 56px);
+    gap: 40px;
   }
-  .contact-letter p {
-    margin: 0 0 12px;
+  .contact-main p + p {
+    margin-top: 12px;
   }
-  .contact-letter .profiles {
-    justify-content: flex-start;
-    margin-top: 18px;
-    font-size: 1.05rem;
+  .services {
+    padding: 24px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
   }
   .services h3 {
-    margin: 0;
-    font-size: 1.12rem;
-    font-weight: 600;
-  }
-  .services-intro {
-    margin: 6px 0 0;
-    color: var(--ink-soft);
-    font-size: 0.94em;
+    font-size: 1.05rem;
+    font-weight: 700;
   }
   .services dl {
-    margin: 14px 0 0;
+    margin: 16px 0 0;
   }
-  .services dl div {
-    padding: 10px 0;
-    border-top: 1px dotted var(--rule);
+  .services dl div + div {
+    margin-top: 14px;
   }
   .services dt {
     font-weight: 600;
   }
   .services dd {
     margin: 2px 0 0;
-    color: var(--ink-soft);
-    font-size: 0.92em;
+    color: var(--muted);
+    font-size: 0.92rem;
   }
 
-  .colophon {
+  .site-footer {
+    margin-top: clamp(64px, 9vw, 104px);
+    border-top: 1px solid var(--border);
+  }
+  .site-footer-inner {
     display: flex;
     flex-wrap: wrap;
-    justify-content: center;
     gap: 6px 24px;
-    max-width: 1120px;
-    margin: 0 auto;
-    padding: 26px 16px 40px;
-    color: rgba(239, 228, 208, 0.62);
-    font-family: var(--small-caps);
-    font-size: 0.84rem;
-    letter-spacing: 0.08em;
-  }
-  .colophon p {
-    margin: 0;
+    padding-block: 28px 40px;
+    color: var(--faint);
+    font-size: 0.86rem;
   }
 
-  @media (max-width: 860px) {
-    .masthead {
+  @media (max-width: 880px) {
+    .site-header-inner {
       flex-wrap: wrap;
-      gap: 8px 16px;
+      gap: 0 16px;
+      padding-block: 10px 0;
     }
-    .masthead-nav {
-      order: 3;
-      width: 100%;
-      margin-inline: 0;
-      overflow-x: auto;
-      flex-wrap: nowrap;
-      padding-bottom: 2px;
-      scrollbar-width: none;
-    }
-    .masthead-nav a {
-      flex: none;
-    }
-    .masthead-tools {
+    .site-tools {
       margin-left: auto;
     }
+    .site-nav {
+      order: 3;
+      width: 100%;
+      margin: 0;
+      padding: 10px 0 12px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
     .product-grid,
-    .contact,
-    .catalog ol {
+    .contact {
       grid-template-columns: 1fr;
+    }
+    .facts {
+      grid-template-columns: repeat(2, minmax(0, max-content));
     }
   }
 
-  @media (max-width: 640px) {
-    .profile {
-      font-size: 16px;
+  @media (max-width: 600px) {
+    .container {
+      padding-inline: 16px;
     }
-    .profile--ja {
-      font-size: 15px;
+    .facts {
+      gap: 12px 20px;
     }
-    .folio {
-      margin: 4px 8px 0;
-      padding: 26px 18px 34px;
-    }
-    .catalog ol {
-      grid-template-columns: 1fr;
-    }
-    .catalog-kind {
-      white-space: normal;
-    }
-    .case,
-    .timeline-entry {
+    .row {
       grid-template-columns: 1fr;
       gap: 6px;
     }
-    .product {
-      padding: 18px 16px;
+    .product-body,
+    .services {
+      padding: 20px 18px;
     }
   }
 
   @media print {
-    .profile {
-      background: #fff;
-      font-size: 11pt;
-    }
-    .masthead,
-    .skip-link,
-    .colophon a {
+    .site-header,
+    .skip-link {
       display: none;
     }
-    .folio {
-      max-width: none;
-      margin: 0;
-      padding: 0;
-      background: none;
-      box-shadow: none;
+    .profile-root,
+    .profile {
+      background: #fff;
+      color: #000;
     }
     .product,
-    .case,
-    .timeline-entry {
+    .row {
       break-inside: avoid;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .profile a {
+    .profile-root {
+      scroll-behavior: auto;
+    }
+    .buttons a,
+    .product-media img {
       transition: none;
     }
   }
