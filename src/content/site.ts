@@ -30,6 +30,15 @@ export type CareerItem = {
 /** Small ink emblem drawn beside each product in the grimoire. */
 export type ProductEmblem = "lens" | "quill" | "prism" | "branch";
 
+/** A picture of the product, taken from its own site, for the profile page. */
+export type ProductImage = {
+  /** Path under `public/`. */
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+};
+
 export type ProductItem = {
   id: string;
   name: string;
@@ -42,6 +51,7 @@ export type ProductItem = {
   /** The first link is the product's primary destination. */
   links: LinkItem[];
   emblem: ProductEmblem;
+  image: ProductImage;
 };
 
 export type SkillGroup = {
@@ -94,19 +104,14 @@ export type SiteContent = {
   sections: {
     productsKicker: string;
     productsTitle: string;
-    productsIntro: string;
     skillsKicker: string;
     skillsTitle: string;
-    skillsIntro: string;
     caseStudiesKicker: string;
     caseStudiesTitle: string;
-    caseStudiesIntro: string;
     careerKicker: string;
     careerTitle: string;
-    careerIntro: string;
     workKicker: string;
     workTitle: string;
-    workIntro: string;
     contactKicker: string;
     contactTitle: string;
     contactIntro: string;
@@ -148,10 +153,10 @@ export const siteContent: Record<Locale, SiteContent> = {
     meta: {
       title: "Ischca — バックエンドを軸にプロダクトを作るソフトウェアエンジニア",
       description:
-        "ソフトウェアエンジニア Ischca のポートフォリオ。個人で開発・運営するプロダクト（KUE、Storiiva、PrismDiff、Restrict Language）と、実務で使ってきた技術を紹介しています。",
+        "ソフトウェアエンジニア Ischca のポートフォリオ。個人で開発・運営するプロダクト（KUE、Storiiva、PrismDiff、Restrict Language）と、実務で使ってきた技術をまとめている。",
       profileTitle: "プロダクト・技術・経歴 — Ischca",
       profileDescription:
-        "Ischca が個人で開発・運営するプロダクト（KUE、Storiiva、PrismDiff、Restrict Language）、実務と個人開発で使ってきた技術、主な仕事と経歴をまとめたページです。",
+        "Ischca が個人で開発・運営するプロダクト（KUE、Storiiva、PrismDiff、Restrict Language）、実務と個人開発で使ってきた技術、主な仕事と経歴をまとめたページ。",
     },
     navigation: {
       products: "プロダクト",
@@ -164,12 +169,12 @@ export const siteContent: Record<Locale, SiteContent> = {
     hero: {
       eyebrow: "Software Engineer · Tokyo",
       role: "ソフトウェアエンジニア（バックエンド / フルスタック）",
-      lead: "バックエンドを軸に、プロダクトの設計・実装・運用までを担当するソフトウェアエンジニアです。",
+      lead: "バックエンドを軸に、プロダクトの設計・実装・運用までを担うソフトウェアエンジニア。",
       introduction:
-        "2016年から、業務システムとコンシューマープロダクトの設計・実装・運用に携わっています。API、データ、パフォーマンスの問題を中心に、必要に応じてフロントエンド、モバイル、クラウドまで担当します。",
+        "2016年から、業務システムとコンシューマー向けプロダクトの設計・実装・運用に携わる。API、データ、パフォーマンスの問題を中心に、必要に応じてフロントエンド、モバイル、クラウドまで担当する。",
       craft: "TypeScript · Kotlin · Go · Scala · Ruby · Rust · AWS · GCP · Terraform",
       availability:
-        "業務委託（パートタイム・継続）で、バックエンドや開発基盤のお仕事をお受けしています。やり取りは、GitHub、Slack、ドキュメントを使った非同期のテキストで行います。",
+        "業務委託（パートタイム・継続）で、バックエンドや開発基盤の仕事を受けている。やり取りは GitHub、Slack、ドキュメントを使った非同期のテキストで行う。",
       experienceLabel: "実務経験",
       experienceValue: "10年以上",
       locationLabel: "拠点",
@@ -182,24 +187,19 @@ export const siteContent: Record<Locale, SiteContent> = {
     sections: {
       productsKicker: "Products",
       productsTitle: "つくったもの",
-      productsIntro: "個人で設計・開発し、公開・運営しているプロダクトです。",
       skillsKicker: "Skills",
       skillsTitle: "技術",
-      skillsIntro: "実務と個人開発で使ってきた技術を、使った場面とあわせて載せています。",
       caseStudiesKicker: "Selected work",
       caseStudiesTitle: "主な仕事",
-      caseStudiesIntro: "これまでに設計・開発を担当した、主なシステムです。",
       careerKicker: "Career",
       careerTitle: "経歴",
-      careerIntro: "所属と役割を、新しいものから順に載せています。",
       workKicker: "Services",
       workTitle: "対応できる仕事",
-      workIntro: "既存システムを読み解き、サービスを止めずに改善する仕事を中心にお受けしています。",
       contactKicker: "Contact",
       contactTitle: "連絡先",
-      contactIntro: "ご相談は、LinkedIn または Upwork からテキストでお送りください。",
+      contactIntro: "相談や依頼は、LinkedIn または Upwork からテキストで受け付けている。",
       contactLetter:
-        "業務委託（パートタイム・継続）のお仕事をお受けしています。ご相談は、LinkedIn または Upwork からテキストでお送りください。",
+        "業務委託（パートタイム・継続）の仕事を受けている。相談や依頼は、LinkedIn または Upwork からテキストで受け付ける。",
     },
     labels: {
       fit: "向いている案件",
@@ -210,7 +210,7 @@ export const siteContent: Record<Locale, SiteContent> = {
       evidence: "使った場面",
       project: "プロジェクト",
       readInFull: "全文を読む",
-      viewGrimoire: "魔導書で見る",
+      viewGrimoire: "インタラクティブ版",
       language: "English",
       updated: "最終更新",
     },
@@ -221,13 +221,13 @@ export const siteContent: Record<Locale, SiteContent> = {
         kind: "モバイルアプリ向け SDK・SaaS",
         status: "SDK・CLI v0.6.0 · MIT",
         tagline:
-          "実機テストで見つけた不具合や UI の気づきを、スクリーンショットとメモ付きの GitHub Issue として登録できるツールです。",
+          "実機テストで見つけた不具合や UI の気づきを、スクリーンショットとメモ付きの GitHub Issue として登録できるツール。",
         highlights: [
-          "Expo / React Native、ネイティブの iOS・Android、Flutter のアプリに導入できます。",
-          "SDK は npm、Swift Package Manager、Maven Central、pub.dev から配布しています。",
-          "報告の送り先は、アプリ側の保存処理か、GitHub Issue を作成する KUE Cloud から選べます。",
+          "Expo / React Native、ネイティブの iOS・Android、Flutter のアプリに導入できる。",
+          "SDK は npm、Swift Package Manager、Maven Central、pub.dev から配布している。",
+          "報告の送り先はアプリ側の保存処理か、GitHub Issue を作成する KUE Cloud から選べる。",
         ],
-        role: "SDK とセットアップ CLI を開発し、ホスト型サービスの KUE Cloud とあわせて提供しています。",
+        role: "SDK とセットアップ CLI を開発し、ホスト型サービスの KUE Cloud とあわせて提供している。",
         stack: ["Swift", "Kotlin", "TypeScript", "Dart"],
         links: [
           { label: "サイト", href: "https://kue.ischca.dev/" },
@@ -235,22 +235,34 @@ export const siteContent: Record<Locale, SiteContent> = {
           { label: "GitHub", href: "https://github.com/Ischca/kue" },
         ],
         emblem: "lens",
+        image: {
+          src: "products/kue-ja.webp",
+          alt: "KUE のキャラクターとロゴ。「気になる『ここ』をそのまま Issue に」と書かれている。",
+          width: 1200,
+          height: 630,
+        },
       },
       {
         id: "storiiva",
         name: "Storiiva",
         kind: "Web 小説投稿サービス",
         status: "運営中",
-        tagline: "生成 AI を活用した作品も投稿できる、無料の Web 小説投稿・読書サイトです。",
+        tagline: "生成 AI を使った作品も投稿できる、無料の Web 小説投稿・読書サイト。",
         highlights: [
-          "読者は、アカウントを作らずに公開エピソードを読めます。",
-          "多言語での作品公開と、作品探しに対応しています。",
-          "ランキングや新着一覧から、ジャンルごとに作品を探せます。",
+          "読者はアカウントを作らずに公開エピソードを読める。",
+          "多言語での作品公開と作品探しに対応している。",
+          "ランキングや新着一覧から、ジャンルごとに作品を探せる。",
         ],
-        role: "企画から開発、運営までを個人で担当しています。",
+        role: "企画から開発、運営までを個人で担当している。",
         stack: ["Next.js", "TypeScript", "Supabase", "LLM"],
         links: [{ label: "サイト", href: "https://storiiva.com/ja" }],
         emblem: "quill",
+        image: {
+          src: "products/storiiva-ja.webp",
+          alt: "Storiiva の紹介画像。「AI小説を読む・投稿するならStoriiva」と書かれている。",
+          width: 1200,
+          height: 630,
+        },
       },
       {
         id: "prismdiff",
@@ -258,35 +270,47 @@ export const siteContent: Record<Locale, SiteContent> = {
         kind: "macOS アプリ",
         status: "v1.0.6 · 署名・公証済み",
         tagline:
-          "AI が書いたコードを手元の差分でレビューし、指摘をそのままエージェントへ返せるデスクトップアプリです。",
+          "AI が書いたコードを手元の差分でレビューし、指摘をそのままエージェントへ返せるデスクトップアプリ。",
         highlights: [
-          "MCP を通じて、エージェントの指摘を差分の該当行に表示し、返信をエージェントへ戻します。",
-          "空白の変更やインポートの移動を畳み、意味のある変更に集中できます。",
-          "ブランチ、worktree、GitHub のプルリクエストを手元でレビューできます。",
+          "MCP を通じて、エージェントの指摘を差分の該当行に表示し、返信をエージェントへ戻す。",
+          "空白だけの変更やインポートの移動を折りたたんで表示する。",
+          "ブランチ、worktree、GitHub のプルリクエストを手元でレビューできる。",
         ],
-        role: "設計・開発から、署名付きアプリの配布までを個人で担当しています。",
+        role: "設計・開発から署名付きアプリの配布までを個人で担当している。",
         stack: ["Rust", "Tauri", "React", "MCP"],
         links: [{ label: "サイト", href: "https://ischca.github.io/prismdiff/" }],
         emblem: "prism",
+        image: {
+          src: "products/prismdiff.webp",
+          alt: "AI が書いたコードの差分に、行単位のレビューコメントを書き込んでいる PrismDiff の画面。",
+          width: 1200,
+          height: 675,
+        },
       },
       {
         id: "restrict",
         name: "Restrict Language",
         kind: "プログラミング言語",
         status: "v0.0.1 · MIT",
-        tagline: "データを先に、操作を後に書く、WebAssembly 向けのプログラミング言語です。",
+        tagline: "データを先に、操作を後に書く、WebAssembly 向けのプログラミング言語。",
         highlights: [
-          "引数が先、関数が後に来る OSV 語順で、値の流れを書いた順に読めます。",
-          "アフィン型の検査で、移動済みの値をうっかり再利用するミスを防ぎます。",
-          "ブラウザで動くプレイグラウンド、LSP、VS Code 拡張を用意しています。",
+          "引数が先、関数が後に来る OSV 語順で、値の流れを書いた順に読める。",
+          "アフィン型の検査で、移動済みの値をうっかり再利用するミスを防ぐ。",
+          "ブラウザで動くプレイグラウンド、LSP、VS Code 拡張を用意している。",
         ],
-        role: "言語仕様、コンパイラ、エディタ支援までを個人で開発しています。",
+        role: "言語仕様、コンパイラ、エディタ支援までを個人で開発している。",
         stack: ["Rust", "WebAssembly", "LSP"],
         links: [
           { label: "サイト", href: "https://ischca.github.io/restrict_lang/" },
           { label: "GitHub", href: "https://github.com/Ischca/restrict_lang" },
         ],
         emblem: "branch",
+        image: {
+          src: "products/restrict.webp",
+          alt: "Restrict Language のサイトのトップ。「Values first. Ownership clear.」の見出しとコードの例。",
+          width: 1200,
+          height: 630,
+        },
       },
     ],
     skills: [
@@ -333,10 +357,10 @@ export const siteContent: Record<Locale, SiteContent> = {
         period: "2016 — 2023",
         role: "リードエンジニア / フルスタック",
         summary:
-          "製薬企業の臨床試験業務を支える EDC を、立ち上げから本番運用まで開発しました。のちにリードエンジニアとして、設計・実装・運用を率いました。",
+          "製薬企業の臨床試験で使う EDC を、立ち上げから本番運用まで開発した。のちにリードエンジニアとして、設計・実装・運用を主導した。",
         highlights: [
           "テナントの分離とアクセス制御を含む、バックエンドとフロントエンドの機能を開発。",
-          "誰が、いつ、どのデータを変えたかを残す監査証跡を実装し、規制下の業務に必要な追跡性を確保。",
+          "規制で求められる監査証跡（誰が、いつ、どのデータを変えたかの記録）を実装。",
           "設定駆動のフォーム、式インタープリター、Excel・CSV・PDF の入出力を実装。",
           "GCP から AWS への移行と Docker 化、JSF・jQuery から Aurelia・TypeScript へのフロントエンド刷新を担当。",
         ],
@@ -347,10 +371,10 @@ export const siteContent: Record<Locale, SiteContent> = {
         organization: "Creatures",
         period: "2023 — 2026",
         role: "フルスタックエンジニア",
-        summary: "カード、商品、イラストのデータを管理する社内基盤を、開発・保守しました。",
+        summary: "カード、商品、イラストのデータを管理する社内基盤を、開発・保守した。",
         highlights: [
-          "ドメイン固有の複雑な業務ルール、管理用の設定画面、システム間のデータ同期を実装。",
-          "アクセス制御と、スプレッドシートのように編集できるデータ編集機能を開発。",
+          "複雑な業務ルール、管理用の設定画面、システム間のデータ同期を実装。",
+          "アクセス制御と、スプレッドシートのようにデータを編集できる機能を開発。",
           "Angular を Standalone Components、Typed Forms、JSpreadsheet で刷新し、本番に反映。",
         ],
         stack: ["Scala", "Play Framework", "Angular", "TypeScript", "MySQL", "GCP / GKE", "Terraform"],
@@ -360,9 +384,9 @@ export const siteContent: Record<Locale, SiteContent> = {
         organization: "Creatures",
         role: "テクニカルリード / エンジニア",
         summary:
-          "約4名の職能横断チームで唯一のエンジニアとして開発を担い、技術面のリードとプロジェクト管理も兼ねました。",
+          "約4名の職能横断チームで唯一のエンジニアとして開発を担い、技術面のリードとプロジェクト管理も兼ねた。",
         highlights: [
-          "YAML と CEL（Common Expression Language）による、共通の宣言的なゲームランタイムを設計・実装。",
+          "YAML と CEL（Common Expression Language）による共通の宣言的なゲームランタイムを設計・実装。",
           "状態遷移、シナリオ分岐、キャラクターの振る舞い、LLM に渡すプロンプトと文脈を、設定で切り替えられるようにした。",
           "Anthropic Claude と Google Gemini を組み込み、小説執筆と音楽制作のアプリを約2か月で社内・限定公開向けに提供。",
         ],
@@ -373,10 +397,10 @@ export const siteContent: Record<Locale, SiteContent> = {
         organization: "HashPort",
         period: "2022",
         role: "バックエンドエンジニア",
-        summary: "複数のブロックチェーンにまたがる、ウォレットのバックエンド API と送金処理を開発しました。",
+        summary: "複数のブロックチェーンにまたがる、ウォレットのバックエンド API と送金処理を開発した。",
         highlights: [
           "チェーンごとの仕様に合わせて、資産移転の連携処理を実装。",
-          "情報が少ない領域で、調査と検証を重ねながら仕様を具体化。",
+          "資料が少ないなかで、調査と検証を通じて仕様を固めた。",
         ],
         stack: ["TypeScript", "Ethereum", "Tezos", "Bitcoin", "PLT"],
       },
@@ -385,7 +409,7 @@ export const siteContent: Record<Locale, SiteContent> = {
       {
         title: "Backend / API 改善",
         summary:
-          "既存サービスの認証、入力検証、データ整合性、API の不具合を調査し、影響範囲を見極めたうえで修正します。",
+          "既存サービスの認証、入力検証、データ整合性、API の不具合を調査し、影響範囲を確かめてから修正する。",
         fit: "再現しにくい不具合、仕様と実装のズレ、段階的な改修",
         stack: "TypeScript / Kotlin / Java / Rails / GraphQL",
         scope: "調査、実装、テスト、影響確認",
@@ -394,7 +418,7 @@ export const siteContent: Record<Locale, SiteContent> = {
       {
         title: "Data / Performance 調査",
         summary:
-          "遅い画面や API を、クエリ、キャッシュ、アプリケーション処理、呼び出し構造まで追い、計測できる改善へつなげます。",
+          "遅い画面や API を、クエリ、キャッシュ、アプリケーション処理、呼び出し構造まで調べ、改善前後の数値を示す。",
         fit: "GraphQL の N+1、SQL のボトルネック、バッチ処理、Redis の設計",
         stack: "MySQL / Redis / GraphQL / Scala / Rails",
         scope: "計測、原因の切り分け、改善案、実装",
@@ -403,7 +427,7 @@ export const siteContent: Record<Locale, SiteContent> = {
       {
         title: "既存システムの開発・立て直し",
         summary:
-          "バックエンドを主軸に、フロントエンド、クラウド、CI まで含めて既存システムへ参加し、止めずに改善を積み重ねます。",
+          "稼働中のシステムの開発に加わり、バックエンドを中心に、フロントエンド、クラウド、CI も少しずつ改善する。",
         fit: "技術負債の分割、移行、開発環境や CI の改善、運用の課題",
         stack: "React / Next.js / AWS / GCP / Terraform / Kubernetes",
         scope: "設計、実装、レビュー、運用改善",
@@ -419,9 +443,9 @@ export const siteContent: Record<Locale, SiteContent> = {
         role: "Software Engineer",
         summary: "美容プラットフォームのバックエンドを中心に、Web と運用基盤も改善。",
         details: [
-          "認証・入力検証・データ整合性に関する不具合の修正と、安全なリファクタリング。",
+          "認証・入力検証・データ整合性の不具合を修正し、関連するコードを段階的にリファクタリング。",
           "GraphQL の N+1 と、関連 API のパフォーマンスを改善。",
-          "CI、ローカル開発環境、インシデント対応、必要に応じたモバイル UI の改善。",
+          "CI、ローカル開発環境、インシデント対応のほか、一部のモバイル UI の改善も担当。",
         ],
         stack: "Ruby on Rails, GraphQL, React, Next.js, MySQL, Redis, AWS, GCP, Terraform",
       },
@@ -436,7 +460,7 @@ export const siteContent: Record<Locale, SiteContent> = {
           "カード・商品・イラストのデータを扱う社内基盤で、業務ルール、管理画面、システム間のデータ同期を実装。",
           "Angular を Standalone Components と Typed Forms で刷新し、本番に反映。",
           "生成 AI ゲーム基盤では唯一のエンジニアとして、YAML と CEL による宣言的なランタイムを設計。",
-          "検索、認証、バッチ処理、データベース最適化、CI と E2E テストまで横断して担当。",
+          "検索、認証、バッチ処理、データベースの最適化、CI、E2E テストも担当。",
         ],
         stack: "Scala, Play Framework, Go, Gin, TypeScript, Angular, Next.js, MySQL, GCP / GKE, Terraform",
       },
@@ -450,7 +474,7 @@ export const siteContent: Record<Locale, SiteContent> = {
         summary: "初期開発から関わった EDC にリードエンジニアとして再参加し、3名のチームを率いた。",
         details: [
           "アーキテクチャ、実装、本番運用を主導。",
-          "3名のチームで設計・実装・レビューを担い、既存機能の継続開発を推進。",
+          "設計・実装・レビューを担当しながら、既存機能の開発を続けた。",
         ],
         stack: "Kotlin, Ktor, TypeScript, Aurelia, AWS, Docker",
       },
@@ -460,10 +484,10 @@ export const siteContent: Record<Locale, SiteContent> = {
         endYear: 2022,
         company: "HashPort",
         role: "Backend Engineer",
-        summary: "複数のチェーンに対応するウォレットの、バックエンド API と送金処理を開発。",
+        summary: "複数のチェーンに対応するウォレットのバックエンド API と送金処理を開発。",
         details: [
           "Ethereum、Tezos、Bitcoin、PLT など、チェーンごとの連携処理を実装。",
-          "情報が少ない領域で、調査と検証を重ねながら仕様を具体化。",
+          "資料が少ないなかで、調査と検証を通じて仕様を固めた。",
         ],
         stack: "TypeScript, Ethereum, Tezos, Bitcoin, PLT",
       },
@@ -521,19 +545,14 @@ export const siteContent: Record<Locale, SiteContent> = {
     sections: {
       productsKicker: "Products",
       productsTitle: "Products",
-      productsIntro: "Products I design, build, release, and operate on my own.",
       skillsKicker: "Skills",
       skillsTitle: "Skills",
-      skillsIntro: "Technologies I use at work and in my own products, each with where I used it.",
       caseStudiesKicker: "Selected work",
       caseStudiesTitle: "Selected work",
-      caseStudiesIntro: "Systems I have designed and built in my professional work.",
       careerKicker: "Experience",
       careerTitle: "Experience",
-      careerIntro: "Roles and responsibilities, most recent first.",
       workKicker: "Services",
       workTitle: "Services",
-      workIntro: "I mainly work on understanding and improving existing systems without disrupting delivery.",
       contactKicker: "Contact",
       contactTitle: "Contact",
       contactIntro: "For project inquiries, please write to me through LinkedIn or Upwork.",
@@ -549,7 +568,7 @@ export const siteContent: Record<Locale, SiteContent> = {
       evidence: "Used in",
       project: "Project",
       readInFull: "Read in full",
-      viewGrimoire: "View the manuscript",
+      viewGrimoire: "Interactive edition",
       language: "日本語",
       updated: "Last updated",
     },
@@ -574,6 +593,12 @@ export const siteContent: Record<Locale, SiteContent> = {
           { label: "GitHub", href: "https://github.com/Ischca/kue" },
         ],
         emblem: "lens",
+        image: {
+          src: "products/kue-en.webp",
+          alt: "The KUE character and logo, with the line “Turn this into an Issue”.",
+          width: 1200,
+          height: 630,
+        },
       },
       {
         id: "storiiva",
@@ -590,6 +615,12 @@ export const siteContent: Record<Locale, SiteContent> = {
         stack: ["Next.js", "TypeScript", "Supabase", "LLM"],
         links: [{ label: "Website", href: "https://storiiva.com/en" }],
         emblem: "quill",
+        image: {
+          src: "products/storiiva-en.webp",
+          alt: "The Storiiva banner: “Discover Amazing Stories”.",
+          width: 1200,
+          height: 630,
+        },
       },
       {
         id: "prismdiff",
@@ -600,13 +631,19 @@ export const siteContent: Record<Locale, SiteContent> = {
           "A local-first desktop app for reviewing AI-written code and handing the findings back to the agent.",
         highlights: [
           "Over MCP, agent findings land on the exact lines of your local diff, and your replies flow back.",
-          "Collapses whitespace churn and import moves so attention goes to meaningful changes.",
+          "Collapses whitespace-only changes and moved imports.",
           "Reviews branches, worktrees, and GitHub pull requests locally.",
         ],
         role: "I design and build it, and ship the signed releases myself.",
         stack: ["Rust", "Tauri", "React", "MCP"],
         links: [{ label: "Website", href: "https://ischca.github.io/prismdiff/" }],
         emblem: "prism",
+        image: {
+          src: "products/prismdiff.webp",
+          alt: "PrismDiff showing a line-level review comment on an AI-written code diff.",
+          width: 1200,
+          height: 675,
+        },
       },
       {
         id: "restrict",
@@ -626,6 +663,12 @@ export const siteContent: Record<Locale, SiteContent> = {
           { label: "GitHub", href: "https://github.com/Ischca/restrict_lang" },
         ],
         emblem: "branch",
+        image: {
+          src: "products/restrict.webp",
+          alt: "The Restrict Language website: “Values first. Ownership clear.” beside a code sample.",
+          width: 1200,
+          height: 630,
+        },
       },
     ],
     skills: [
@@ -675,7 +718,7 @@ export const siteContent: Record<Locale, SiteContent> = {
           "Built an electronic data capture platform for clinical trials from greenfield development through production, and later led its architecture, implementation, and operations.",
         highlights: [
           "Developed backend and frontend features, including tenant isolation and access control.",
-          "Implemented audit trails that record who changed which data and when, for traceability in regulated workflows.",
+          "Implemented the audit trail that regulations require: a record of who changed which data, and when.",
           "Built configuration-driven forms, an expression interpreter, and Excel, CSV, and PDF workflows.",
           "Migrated from GCP to AWS with Docker, and modernized the frontend from JSF and jQuery to Aurelia and TypeScript.",
         ],
@@ -715,7 +758,7 @@ export const siteContent: Record<Locale, SiteContent> = {
         summary: "Developed wallet backend APIs and transaction workflows across multiple blockchain networks.",
         highlights: [
           "Implemented chain-specific integrations for asset transfers.",
-          "Turned sparse documentation into working specifications through research and verification.",
+          "With little documentation available, worked out the specifications through research and verification.",
         ],
         stack: ["TypeScript", "Ethereum", "Tezos", "Bitcoin", "PLT"],
       },
@@ -724,7 +767,7 @@ export const siteContent: Record<Locale, SiteContent> = {
       {
         title: "Backend / API improvements",
         summary:
-          "I investigate and fix authentication, validation, data integrity, and API defects in existing services while accounting for the surrounding impact.",
+          "I investigate authentication, validation, data-integrity, and API defects in existing services, and fix them after checking what else the change affects.",
         fit: "Hard-to-reproduce defects, spec-to-code gaps, staged changes",
         stack: "TypeScript / Kotlin / Java / Rails / GraphQL",
         scope: "Investigation, implementation, tests, impact review",
@@ -733,7 +776,7 @@ export const siteContent: Record<Locale, SiteContent> = {
       {
         title: "Data / performance investigation",
         summary:
-          "I trace slow screens and APIs through queries, caches, application logic, and call structure, then turn the findings into measurable improvements.",
+          "I trace slow screens and APIs through queries, caches, application logic, and call structure, and show before-and-after numbers for each fix.",
         fit: "GraphQL N+1 issues, SQL bottlenecks, batch jobs, Redis design",
         stack: "MySQL / Redis / GraphQL / Scala / Rails",
         scope: "Measurement, isolation, options, implementation",
@@ -742,7 +785,7 @@ export const siteContent: Record<Locale, SiteContent> = {
       {
         title: "Existing-system development",
         summary:
-          "I join existing systems with a backend focus and improve them without stopping delivery, including frontend, cloud, and CI when necessary.",
+          "I join systems already in production and improve them in small steps: mainly the backend, but also frontend, cloud, and CI.",
         fit: "Splitting technical debt, migrations, CI and local tooling, operations",
         stack: "React / Next.js / AWS / GCP / Terraform / Kubernetes",
         scope: "Design, implementation, review, operational improvements",
@@ -758,7 +801,7 @@ export const siteContent: Record<Locale, SiteContent> = {
         role: "Software Engineer",
         summary: "Backend-centered work on a beauty platform, with web and operational improvements.",
         details: [
-          "Fixed authentication, validation, and data-integrity defects with safe, staged refactoring.",
+          "Fixed authentication, validation, and data-integrity defects, and refactored the related code in stages.",
           "Improved GraphQL N+1 behavior and the performance of related APIs.",
           "Worked on CI, local development, incident response, and selected mobile UI improvements.",
         ],
@@ -775,7 +818,7 @@ export const siteContent: Record<Locale, SiteContent> = {
           "Implemented domain rules, admin screens, and cross-system sync on the platform for card, product, and illustration data.",
           "Modernized the Angular frontend with Standalone Components and Typed Forms, and shipped it to production.",
           "As the only engineer on the generative AI platform, designed a declarative runtime with YAML and CEL.",
-          "Worked across search, authentication, batch processing, database optimization, CI, and end-to-end tests.",
+          "Also worked on search, authentication, batch processing, database optimization, CI, and end-to-end tests.",
         ],
         stack: "Scala, Play Framework, Go, Gin, TypeScript, Angular, Next.js, MySQL, GCP / GKE, Terraform",
       },
@@ -789,7 +832,7 @@ export const siteContent: Record<Locale, SiteContent> = {
         summary: "Returned to the EDC platform I had helped build from the start, and led a three-engineer team.",
         details: [
           "Led the architecture, implementation, and production operations.",
-          "Handled design, implementation, and review while moving ongoing product work forward.",
+          "Handled design, implementation, and review while continuing development of existing features.",
         ],
         stack: "Kotlin, Ktor, TypeScript, Aurelia, AWS, Docker",
       },
@@ -802,7 +845,7 @@ export const siteContent: Record<Locale, SiteContent> = {
         summary: "Built wallet backend APIs and transaction workflows across multiple blockchains.",
         details: [
           "Implemented chain-specific integrations for Ethereum, Tezos, Bitcoin, PLT, and more.",
-          "Turned sparse documentation into working specifications through research and verification.",
+          "With little documentation available, worked out the specifications through research and verification.",
         ],
         stack: "TypeScript, Ethereum, Tezos, Bitcoin, PLT",
       },

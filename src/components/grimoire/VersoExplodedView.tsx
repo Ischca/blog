@@ -119,7 +119,7 @@ const LAYERS: readonly LayerDefinition[] = [
     render: "surface",
     evidence: "LIVE FRAME",
     detail: {
-      ja: "閲覧者が実際に見ていた最終フレームです。紙のalbedo・height・inkをPhysicalParchmentRendererへ渡し、同一のWebGLシェーダーで変位、法線、照明、顔料を合成します。WebGLが使えない場合だけCanvas 2Dへフォールバックします。",
+      ja: "閲覧者が実際に見ていた最終フレーム。紙のalbedo・height・inkをPhysicalParchmentRendererへ渡し、同一のWebGLシェーダーで変位、法線、照明、顔料を合成する。WebGLが使えない場合だけCanvas 2Dへフォールバックする。",
       en: "The final frame the visitor was actually viewing. Albedo, height, and ink buffers are passed to PhysicalParchmentRenderer, where one WebGL shader combines displacement, normals, lighting, and pigment. Canvas 2D is the fallback path only.",
       metrics: [["PRIMARY", "WEBGL"], ["FALLBACK", "CANVAS 2D"], ["COLOUR", "SRGB"]],
       pipeline: ["Build paper-fixed albedo and height buffers", "Render SDF text into the ink surface", "Apply absorption and groove masks", "Render the combined height and pigment field"],
@@ -136,7 +136,7 @@ const LAYERS: readonly LayerDefinition[] = [
     render: "vellum",
     evidence: "LIVE ALBEDO / TOPOLOGY SCHEMATIC",
     detail: {
-      ja: "背景は実際にシェーダーへ渡される無照明のalbedo bufferです。重ねた格子は実メッシュと同じ112×84分割を示す正確な模式図であり、albedo自体に焼き込まれた線ではありません。",
+      ja: "背景は実際にシェーダーへ渡される無照明のalbedo buffer。重ねた格子は実メッシュと同じ112×84分割を示す正確な模式図で、albedo自体に焼き込まれた線ではない。",
       en: "The background is the unlit albedo buffer actually sent to the shader. The overlaid grid is an exact 112 × 84 topology schematic of the real mesh; it is not baked into the albedo.",
       metrics: [["SUBDIVISIONS", "112 × 84"], ["VERTICES", "9,605"], ["TRIANGLES", "18,816"]],
       pipeline: ["Generate the edge-masked vellum albedo", "Upload it as an sRGB texture", "Create a 112 × 84 PlaneGeometry", "Displace that geometry from the height buffer"],
@@ -153,7 +153,7 @@ const LAYERS: readonly LayerDefinition[] = [
     render: "height",
     evidence: "LIVE RESOURCE / RAW",
     detail: {
-      ja: "GPUへuHeightとして渡す実際のCanvas textureです。R channelが紙の高さ、A channelが紙面maskです。法線画像は保存せず、この高さを隣接4点でサンプリングし、最終段でink alphaの画面微分を加えて再構築します。",
+      ja: "GPUへuHeightとして渡す実際のCanvas texture。R channelが紙の高さ、A channelが紙面mask。法線画像は保存せず、この高さを隣接4点でサンプリングし、最終段でink alphaの画面微分を加えて法線を再構築する。",
       en: "The actual Canvas texture uploaded as uHeight. Its R channel stores paper height and A stores the paper mask. No normal map is stored: four neighbouring height samples are combined with screen derivatives of ink alpha at the final shading stage.",
       metrics: [["R CHANNEL", "HEIGHT"], ["A CHANNEL", "PAPER MASK"], ["DISPLACE", "0.062"]],
       pipeline: ["Build broad thickness and fold values", "Blend in photographic micro-relief", "Sample four neighbouring heights in the shader", "Add the ink gradient and normalize"],
@@ -170,7 +170,7 @@ const LAYERS: readonly LayerDefinition[] = [
     render: "ink",
     evidence: "02 LIVE BUFFERS",
     detail: {
-      ja: "左が実際のpigment alpha、右が紙に固定されたabsorption maskです。手描き線は入力pressure・速度・ペン角度から幅を計算し、文字はrun単位のpressure/absorptionを受けます。最終的な凹みはink alpha×0.052として紙の高さから引かれます。",
+      ja: "左が実際のpigment alpha、右が紙に固定されたabsorption mask。手描き線の幅は入力pressure・速度・ペン角度から計算し、文字はrun単位のpressure/absorptionを受ける。最終的な凹みはink alpha×0.052として紙の高さから引かれる。",
       en: "Left is the actual pigment alpha; right is the paper-fixed absorption mask. Hand-drawn width uses input pressure, speed, and nib angle, while text receives pressure and absorption per text run. Final depth subtracts ink alpha × 0.052 from paper height.",
       metrics: [["INK DEPTH", "0.052"], ["USER NIB", "0.68–2.65 PX"], ["MASK", "PAPER-FIXED"]],
       pipeline: ["Rasterize static text and user strokes", "Erase pigment through the relief-derived absorption mask", "Apply darker deposits from paper grooves", "Mix lit pigment into the shared surface shader"],
@@ -187,7 +187,7 @@ const LAYERS: readonly LayerDefinition[] = [
     render: "glyph",
     evidence: "LIVE GPU OUTPUT",
     detail: {
-      ja: "Troikaが生成した実際のSDF文字出力です。glyph coverageへrun単位のpressureとabsorption、同じ紙のrelief sampleを適用した後、ink bufferへ合成します。凹みと最終照明は次段のPhysicalParchmentRendererが担当します。",
+      ja: "Troikaが生成した実際のSDF文字出力。glyph coverageへrun単位のpressureとabsorption、同じ紙のrelief sampleを適用した後、その結果をink bufferへ合成する。凹みと最終照明は、次段のPhysicalParchmentRendererが担う。",
       en: "The actual SDF text output produced by Troika. Glyph coverage receives per-run pressure and absorption plus samples from the shared paper relief before entering the ink buffer. PhysicalParchmentRenderer applies depth and final lighting afterward.",
       metrics: [["SDF GLYPH", "128 PX"], ["MAX DPR", "2"], ["FONTS", "LOCAL WOFF"]],
       pipeline: ["Select a local subset font for the run", "Generate and retain Troika SDF meshes", "Modulate coverage with run pressure and paper uptake", "Composite the GPU result into the pigment buffer"],
@@ -204,7 +204,7 @@ const LAYERS: readonly LayerDefinition[] = [
     render: "state",
     evidence: "SECTION STATE / STATE-MACHINE SCHEMATIC",
     detail: {
-      ja: "単一の描画面上でプロフィールの各セクションを切り替える時間軸です。スクロール量を、現在のセクション、局所進行度、前後の描画状態へ変換します。",
+      ja: "単一の描画面上でプロフィールの各セクションを切り替える時間軸。スクロール量を現在のセクション、局所進行度、前後の描画状態へ変換する。",
       en: "A timeline that transitions between portfolio sections on one drawing surface. Scroll distance becomes the active section, local progress, and a pair of adjoining render states.",
       metrics: [["SECTIONS", "05"], ["STEPS", "120"], ["EASING", "SMOOTHSTEP"]],
       pipeline: ["Normalize travel through the sticky section", "Resolve the current and next sections", "Apply smoothstep after the first 14%", "Quantize the transition to increments of 1/120"],
@@ -221,7 +221,7 @@ const LAYERS: readonly LayerDefinition[] = [
     render: "trace",
     evidence: "CAPTURED INPUT",
     detail: {
-      ja: "実際に完成判定を通過した筆画の記録です。円の閉路検出後、画面pixel空間で交差八芒星の8線分を6区間ずつに分け、複数筆画を合算して許容距離内のcoverageを検証します。",
+      ja: "実際に完成判定を通過した筆画の記録。円の閉路を検出した後、画面pixel空間で交差八芒星の8線分を6区間ずつに分け、複数筆画を合算して許容距離内のcoverageを検証する。",
       en: "The strokes that actually passed completion. After circle detection, the crossed octagram's eight segments are divided into six bins in screen-pixel space; coverage accumulates across multiple strokes within a bounded tolerance.",
       metrics: [["SEGMENTS", "8 × 6 BINS"], ["TOLERANCE", "6–11 PX"], ["COVERAGE", "> 72%"]],
       pipeline: ["Detect a sufficiently closed circle", "Reveal the crossed guide", "Accumulate segment coverage", "Trigger completion only after full tracing"],
@@ -238,7 +238,7 @@ const LAYERS: readonly LayerDefinition[] = [
     render: "source",
     evidence: "ARCHITECTURE SCHEMATIC",
     detail: {
-      ja: "実行構造を示す模式図です。Astroが日英の静的HTMLを生成し、React islandはclient:loadでhydrateされます。ThreeとTroikaはhydrate後に非同期importされ、紙面用の二つのGPU rendererを初期化します。隠しインタラクションの完了を待って読み込む構成ではありません。",
+      ja: "実行構造を示す模式図。Astroが日英の静的HTMLを生成し、React islandはclient:loadでhydrateされる。ThreeとTroikaはhydrate後に非同期importされ、紙面用の二つのGPU rendererの初期化に使われる。隠しインタラクションの完了を待って読み込む構成ではない。",
       en: "A schematic of the real execution structure. Astro emits bilingual static HTML and the React island hydrates with client:load. Three and Troika are asynchronously imported after hydration to initialize the two surface GPU renderers; loading does not wait for the optional hidden interaction.",
       metrics: [["SHELL", "ASTRO STATIC"], ["HYDRATION", "CLIENT:LOAD"], ["SURFACE GPU", "02 RENDERERS"]],
       pipeline: ["Astro generates /ja and /en HTML", "React hydrates the interactive portfolio", "PhysicalInkTextRenderer imports Three and Troika", "PhysicalParchmentRenderer imports Three and composites the surface"],

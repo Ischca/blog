@@ -3,11 +3,14 @@
 A bilingual portfolio for Ischca in two editions:
 
 - `/ja/` and `/en/` — the interactive manuscript ("grimoire"). Its folios are the
-  title page with the catalogue of products, the products, services,
-  experience, and contact.
-- `/ja/profile/` and `/en/profile/` — the full HTML edition with every product,
-  skill, case study, and role. It loads instantly, prints cleanly, and is the
-  page search engines and readers in a hurry should land on.
+  title page, the products, services, experience, and contact.
+- `/ja/profile/` and `/en/profile/` — the profile page with every product,
+  skill, case study, and role. It is deliberately plain, with system fonts and
+  product images, as a contrast to the manuscript; it loads instantly, prints
+  cleanly, and supports light and dark modes.
+
+Product images in `public/products/` come from each product's own site (its
+share image, or a capture of its landing page for Restrict Language).
 
 ## Content
 
@@ -16,8 +19,9 @@ products, skills with where they were used, selected work, career, and the
 public profile links. Update `CONTENT_UPDATED` in the same file when the content
 changes. The grimoire keeps only its interface copy in the component.
 
-Fonts are subset to the characters the site uses. After changing copy, rebuild
-them (see `public/fonts/README.md`):
+Japanese copy is written in plain form (常体). The grimoire's fonts are subset to
+the characters it uses; the profile page uses system fonts only. After changing
+copy, rebuild the subsets (see `public/fonts/README.md`):
 
 ```sh
 FONTTOOLS_PY=/path/to/python-with-fonttools ./scripts/build-font-subset.sh
