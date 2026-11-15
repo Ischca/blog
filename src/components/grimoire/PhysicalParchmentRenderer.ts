@@ -347,7 +347,14 @@ function updateTexture(
   mutable = false,
 ) {
   const changed = texture.image !== source;
-  if (changed) texture.image = source;
+  if (changed) {
+    // A texture's GPU storage is fixed at its first upload. A page of another
+    // size needs new storage, or it would be written over the old page.
+    const previous = imageSourceDimensions(texture.image);
+    const next = imageSourceDimensions(source);
+    if (previous.width !== next.width || previous.height !== next.height) texture.dispose();
+    texture.image = source;
+  }
   if (changed || mutable) texture.needsUpdate = true;
 }
 
