@@ -23,7 +23,23 @@ import {
 } from "./grimoire/VersoExplodedView";
 
 type ViewId = "home" | "work" | "career" | "products" | "contact";
-type InkPoint = { x: number; y: number; width: number; time: number };
+/**
+ * Ink that pooled where the nib touched down. A click is a nib that lifts
+ * without moving, so it leaves its whole drop; a stroke grows out of whatever
+ * pooled before the nib began to move.
+ */
+type InkPool = {
+  /** Radius in CSS pixels at this moment. */
+  radius: number;
+  seed: number;
+  /** When the nib touched the vellum. */
+  born: number;
+  /** When the nib moved off or lifted; the pool stops filling then. */
+  settledAt: number | null;
+  /** True when the nib lifted without moving. */
+  dropped: boolean;
+};
+type InkPoint = { x: number; y: number; width: number; time: number; pool?: InkPool };
 type CanvasSize = { width: number; height: number; dpr: number };
 type Cast = { x: number; y: number; name: string; serial: number };
 type PalimpsestState = { from: number; to: number; progress: number };
@@ -44,6 +60,10 @@ type VisualState = {
   awakened: boolean;
   points: InkPoint[];
   ritualStrokes: InkPoint[][];
+  /** The reader's earlier strokes and drops on this folio. */
+  marks: InkPoint[][];
+  /** Marks the vellum is drinking, and how far it has drunk them (0 to 1). */
+  draining: { marks: InkPoint[][]; strength: number };
   cast: Cast;
   ritual: RitualState;
 };
@@ -157,6 +177,8 @@ type InkSurfaceLayer = MaterialLayer & {
   scorchSoft: HTMLCanvasElement;
   scorchHaze: HTMLCanvasElement;
   scorchHazeStep: HTMLCanvasElement;
+  /** Created on first use: the marks the vellum is drinking, apart from the rest. */
+  drain?: HTMLCanvasElement;
 };
 
 /** CSS pixels per texel of the scorch's soft copy of the ink. */
@@ -168,6 +190,25 @@ const SCORCH_WAIT_LIMIT_MS = 2000;
 const SCORCH_DURATION_MS = 2400;
 /** How much faster the scorch runs out once the reader scrolls or writes. */
 const SCORCH_RUSH = 6;
+
+/** A nib that moves at once leaves no pool wider than its line. */
+const INK_POOL_MIN = 0.8;
+/** How much further the pool under a held nib can spread, in CSS pixels. */
+const INK_POOL_GROWTH = 2.6;
+/** Time constant of a held nib filling its pool. */
+const INK_POOL_FILL_MS = 900;
+/** A nib that lifts without moving leaves a dot of at least this radius. */
+const INK_DROP_RADIUS = 1.5;
+/** The wet pool keeps wicking into the skin after the nib leaves. */
+const INK_POOL_WICK = 1.18;
+/** How quickly a pool's edge follows the ink beneath it. */
+const INK_POOL_EASE_MS = 120;
+/** The reader's marks stay this long after they stop writing. */
+const MARK_DRAIN_DELAY_MS = 5200;
+/** The vellum then drinks them in this long, as a turning page drinks the last one. */
+const MARK_DRAIN_MS = 1500;
+/** Marks older than this give way at once, to keep each repaint cheap. */
+const MARK_LIMIT = 24;
 
 // The skin is a material, not an animation. Baking it once keeps inscription
 // latency independent from the hundreds of fibres and pores in the surface.
@@ -2062,7 +2103,64 @@ function absorbPalimpsestInk(
   context.restore();
 }
 
+/**
+ * The radius a pool is heading for. A held nib keeps filling it; once the nib
+ * moves off or lifts, the wet ink wicks a little further and stops.
+ */
+function inkPoolTarget(pool: InkPool, now: number) {
+  const filling = Math.max(0, (pool.settledAt ?? now) - pool.born);
+  const filled = INK_POOL_MIN + INK_POOL_GROWTH * (1 - Math.exp(-filling / INK_POOL_FILL_MS));
+  if (pool.settledAt === null) return filled;
+  return (pool.dropped ? Math.max(filled, INK_DROP_RADIUS) : filled) * INK_POOL_WICK;
+}
+
+/**
+ * A dot of the same iron-gall ink as the strokes. It goes through the same
+ * absorption and groove passes afterwards, so a click and a line read as
+ * marks from one nib. It stays a small, closed dot: threads of ink running
+ * out from it made it look like an insect.
+ */
+function drawInkPool(context: CanvasRenderingContext2D, x: number, y: number, pool: InkPool) {
+  const radius = pool.radius;
+  if (radius < 0.55) return;
+  const seed = pool.seed;
+  // The skin's grain pulls the edge slightly out of round.
+  const lobes = 24;
+  const outline = (scale: number) => {
+    const edge = (index: number) => {
+      const angle = index / lobes * Math.PI * 2;
+      const wobble = 1
+        + Math.sin(angle * 3 + seed * 1.7) * 0.04
+        + Math.sin(angle * 5 + seed * 0.61) * 0.025
+        + (hash(seed * 31 + (index % lobes)) - 0.5) * 0.05;
+      return { x: x + Math.cos(angle) * radius * scale * wobble, y: y + Math.sin(angle) * radius * scale * wobble * 0.94 };
+    };
+    const path = new Path2D();
+    let current = edge(0);
+    const last = edge(lobes - 1);
+    path.moveTo((last.x + current.x) / 2, (last.y + current.y) / 2);
+    for (let index = 0; index < lobes; index += 1) {
+      const next = edge(index + 1);
+      path.quadraticCurveTo(current.x, current.y, (current.x + next.x) / 2, (current.y + next.y) / 2);
+      current = next;
+    }
+    path.closePath();
+    return path;
+  };
+
+  context.save();
+  context.globalCompositeOperation = "source-over";
+  // A faint margin where the ink has soaked into the skin around the dot.
+  context.fillStyle = "rgba(45, 28, 19, .16)";
+  context.fill(outline(1.32));
+  context.fillStyle = "rgba(45, 28, 19, .72)";
+  context.fill(outline(1));
+  context.restore();
+}
+
 function drawInkStroke(context: CanvasRenderingContext2D, points: InkPoint[]) {
+  const pool = points[0]?.pool;
+  if (pool) drawInkPool(context, points[0].x, points[0].y, pool);
   if (points.length < 2) return;
   const midpoint = (left: InkPoint, right: InkPoint) => ({ x: (left.x + right.x) / 2, y: (left.y + right.y) / 2 });
   context.save();
@@ -2119,6 +2217,39 @@ function drawInkStroke(context: CanvasRenderingContext2D, points: InkPoint[]) {
     }
   }
   context.restore();
+}
+
+/**
+ * Everything the reader has written on this folio. It is drawn before a page
+ * turn drinks the old ink, so the reader's marks drain with the page they
+ * were written on.
+ */
+function drawUserInk(context: CanvasRenderingContext2D, state: VisualState, layer: InkSurfaceLayer) {
+  const { draining } = state;
+  if (draining.marks.length > 0 && draining.strength < 1) {
+    if (!layer.drain) {
+      layer.drain = document.createElement("canvas");
+      layer.drain.width = layer.canvas.width;
+      layer.drain.height = layer.canvas.height;
+    }
+    const drainContext = layer.drain.getContext("2d");
+    if (drainContext) {
+      drainContext.setTransform(1, 0, 0, 1, 0, 0);
+      drainContext.clearRect(0, 0, layer.drain.width, layer.drain.height);
+      drainContext.setTransform(layer.dpr, 0, 0, layer.dpr, 0, 0);
+      draining.marks.forEach((stroke) => drawInkStroke(drainContext, stroke));
+      // The same pores and capillaries that take back a turned page.
+      absorbPalimpsestInk(drainContext, draining.strength, layer.absorption, layer.capillary);
+      context.save();
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.globalAlpha = 1 - smoothstep(0.08, 1, draining.strength);
+      context.drawImage(layer.drain, 0, 0);
+      context.restore();
+    }
+  }
+  state.marks.forEach((stroke) => drawInkStroke(context, stroke));
+  state.ritualStrokes.forEach((stroke) => drawInkStroke(context, stroke));
+  drawInkStroke(context, state.points);
 }
 
 function sigilPoints(points: InkPoint[]) {
@@ -3158,11 +3289,14 @@ function paintScene(
   if (gpuText) INK_TEXT_COLLECTIONS.set(inkContext, gpuText);
   const turn = pageTurnFrame(state);
   drawFolio(inkContext, size.width, size.height, locale, turn.chapter);
+  // A spell keeps the shape of the stroke that woke it, even while the vellum
+  // is drinking that stroke.
+  const magicPoints = state.points.length > 0 ? state.points : state.draining.marks.at(-1) ?? [];
   drawChapter(inkContext, size.width, size.height, turn.chapter, content, locale, turn.phase);
   if (gpuText && textRenderer) {
     // Queue the awakened phrase before the GPU pass; its sigil and the user's
     // physical stroke are deliberately drawn afterwards, above static type.
-    drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, state.points, state.ritual, {
+    drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, magicPoints, state.ritual, {
       geometry: false,
       phrase: true,
     });
@@ -3182,18 +3316,16 @@ function paintScene(
     }
     inkContext.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
     drawPendingInk(inkContext, textRenderer.pendingRuns);
+    drawUserInk(inkContext, state, inkSurface);
     absorbPalimpsestInk(inkContext, turn.absorption, inkSurface.absorption, inkSurface.capillary);
-    state.ritualStrokes.forEach((stroke) => drawInkStroke(inkContext, stroke));
-    drawInkStroke(inkContext, state.points);
-    drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, state.points, state.ritual, {
+    drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, magicPoints, state.ritual, {
       geometry: true,
       phrase: false,
     });
   } else {
+    drawUserInk(inkContext, state, inkSurface);
     absorbPalimpsestInk(inkContext, turn.absorption, inkSurface.absorption, inkSurface.capillary);
-    state.ritualStrokes.forEach((stroke) => drawInkStroke(inkContext, stroke));
-    drawInkStroke(inkContext, state.points);
-    drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, state.points, state.ritual);
+    drawMagic(inkContext, size.width, size.height, state.cast, state.magicPhase, locale, magicPoints, state.ritual);
   }
   inkContext.restore();
 
@@ -4314,6 +4446,8 @@ export function CanvasGrimoireExperience({
     awakened: false,
     points: [],
     ritualStrokes: [],
+    marks: [],
+    draining: { marks: [], strength: 0 },
     cast: { x: 0.5, y: 0.5, name: "VESTIGIUM", serial: 0 },
     ritual: { stage: "idle", sigil: null, mechanismPhase: 0, guideOpacity: 0 },
   });
@@ -4326,6 +4460,12 @@ export function CanvasGrimoireExperience({
   const versoTimersRef = useRef<number[]>([]);
   const reducedMotionRef = useRef(false);
   const inkReadyRef = useRef(false);
+  /** Pools still filling or wicking; each frame moves their edges. */
+  const spreadingPoolsRef = useRef(new Set<InkPool>());
+  const poolFrameRef = useRef<number | null>(null);
+  const poolSerialRef = useRef(0);
+  const drainTimerRef = useRef<number | null>(null);
+  const drainFrameRef = useRef<number | null>(null);
   const [scorchPhase, setScorchPhase] = useState<"dark" | "rising" | "settled">("dark");
   const [active, setActive] = useState(0);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -4372,6 +4512,91 @@ export function CanvasGrimoireExperience({
       paint();
     });
   }, [paint]);
+
+  /** Moves every pool's edge toward the ink beneath it until all have settled. */
+  const spreadPools = useCallback(() => {
+    if (poolFrameRef.current !== null) return;
+    let previous = performance.now();
+    const step = (now: number) => {
+      const elapsed = Math.max(0, now - previous);
+      previous = now;
+      const pools = spreadingPoolsRef.current;
+      pools.forEach((pool) => {
+        const target = inkPoolTarget(pool, now);
+        if (reducedMotionRef.current && pool.settledAt !== null) pool.radius = target;
+        else pool.radius += (target - pool.radius) * (1 - Math.exp(-elapsed / INK_POOL_EASE_MS));
+        if (pool.settledAt !== null && Math.abs(target - pool.radius) < 0.03) {
+          pool.radius = target;
+          pools.delete(pool);
+        }
+      });
+      schedulePaint();
+      poolFrameRef.current = pools.size > 0 ? requestAnimationFrame(step) : null;
+    };
+    poolFrameRef.current = requestAnimationFrame(step);
+  }, [schedulePaint]);
+
+  const cancelDrain = useCallback(() => {
+    if (drainTimerRef.current !== null) {
+      window.clearTimeout(drainTimerRef.current);
+      drainTimerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Lets the vellum drink the reader's marks. After a pause it takes all of
+   * them, with the spell their last gesture woke; when a circle is recognised
+   * it takes only the earlier marks, so the circle stands alone.
+   */
+  const drainMarks = useCallback((includeCurrent: boolean) => {
+    const state = visualRef.current;
+    const takeCurrent = includeCurrent && state.ritual.stage === "idle" && !drawingRef.current;
+    const marks = takeCurrent
+      ? [...state.marks, ...(state.points.length > 0 ? [state.points] : [])]
+      : state.marks;
+    if (marks.length === 0) return;
+    if (drainFrameRef.current !== null) cancelAnimationFrame(drainFrameRef.current);
+    state.marks = [];
+    if (takeCurrent) state.points = [];
+    state.draining = { marks, strength: 0 };
+    const magicFrom = takeCurrent ? state.magicPhase : 0;
+    const finish = () => {
+      drainFrameRef.current = null;
+      state.draining = { marks: [], strength: 0 };
+      if (takeCurrent && state.ritual.stage === "idle") {
+        state.magicPhase = 0;
+        state.awakened = false;
+      }
+      paint();
+    };
+    if (reducedMotionRef.current) {
+      finish();
+      return;
+    }
+    const started = performance.now();
+    const step = (now: number) => {
+      const progress = clamp(0, (now - started) / MARK_DRAIN_MS, 1);
+      state.draining.strength = smoothstep(0, 1, progress);
+      if (takeCurrent && state.ritual.stage === "idle" && magicFrom > 0) {
+        state.magicPhase = magicFrom * (1 - smoothstep(0, 0.85, progress));
+      }
+      if (progress >= 1) {
+        finish();
+        return;
+      }
+      paint();
+      drainFrameRef.current = requestAnimationFrame(step);
+    };
+    drainFrameRef.current = requestAnimationFrame(step);
+  }, [paint]);
+
+  const scheduleDrain = useCallback(() => {
+    cancelDrain();
+    drainTimerRef.current = window.setTimeout(() => {
+      drainTimerRef.current = null;
+      drainMarks(true);
+    }, MARK_DRAIN_DELAY_MS);
+  }, [cancelDrain, drainMarks]);
 
   useEffect(() => {
     let disposed = false;
@@ -4650,6 +4875,18 @@ export function CanvasGrimoireExperience({
         state.active = nextActive;
         state.points = [];
         state.ritualStrokes = [];
+        // By now the turn has drunk the reader's marks with the old page.
+        state.marks = [];
+        state.draining = { marks: [], strength: 0 };
+        if (drainTimerRef.current !== null) {
+          window.clearTimeout(drainTimerRef.current);
+          drainTimerRef.current = null;
+        }
+        if (drainFrameRef.current !== null) {
+          cancelAnimationFrame(drainFrameRef.current);
+          drainFrameRef.current = null;
+        }
+        spreadingPoolsRef.current.clear();
         state.magicPhase = 0;
         state.awakened = false;
         state.ritual = { stage: "idle", sigil: null, mechanismPhase: 0, guideOpacity: 0 };
@@ -4699,27 +4936,31 @@ export function CanvasGrimoireExperience({
       const height = Math.max(1, rect.height);
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const previousSize = sizeRef.current;
+      const state = visualRef.current;
       if (
         previousSize.width > 0
         && previousSize.height > 0
         && (previousSize.width !== width || previousSize.height !== height)
-        && (visualRef.current.points.length > 0 || visualRef.current.ritualStrokes.length > 0)
+        && (
+          state.points.length > 0
+          || state.ritualStrokes.length > 0
+          || state.marks.length > 0
+          || state.draining.marks.length > 0
+        )
       ) {
         const scaleX = width / previousSize.width;
         const scaleY = height / previousSize.height;
         const widthScale = Math.sqrt(scaleX * scaleY);
-        visualRef.current.points = visualRef.current.points.map((point) => ({
+        const rescale = (stroke: InkPoint[]) => stroke.map((point) => ({
           ...point,
           x: point.x * scaleX,
           y: point.y * scaleY,
           width: clamp(0.5, point.width * widthScale, 3.1),
         }));
-        visualRef.current.ritualStrokes = visualRef.current.ritualStrokes.map((stroke) => stroke.map((point) => ({
-          ...point,
-          x: point.x * scaleX,
-          y: point.y * scaleY,
-          width: clamp(0.5, point.width * widthScale, 3.1),
-        })));
+        state.points = rescale(state.points);
+        state.ritualStrokes = state.ritualStrokes.map(rescale);
+        state.marks = state.marks.map(rescale);
+        state.draining = { ...state.draining, marks: state.draining.marks.map(rescale) };
       }
       sizeRef.current = { width, height, dpr };
       const physicalWidth = Math.round(width * dpr);
@@ -4846,8 +5087,11 @@ export function CanvasGrimoireExperience({
     cancelAnimation();
     cancelTracingHint();
     clearVersoTimers();
+    cancelDrain();
     if (paintFrameRef.current !== null) cancelAnimationFrame(paintFrameRef.current);
-  }, [cancelAnimation, cancelTracingHint, clearVersoTimers]);
+    if (poolFrameRef.current !== null) cancelAnimationFrame(poolFrameRef.current);
+    if (drainFrameRef.current !== null) cancelAnimationFrame(drainFrameRef.current);
+  }, [cancelAnimation, cancelTracingHint, cancelDrain, clearVersoTimers]);
 
   useEffect(() => {
     if (versoPhase === "surface") return;
@@ -4873,12 +5117,27 @@ export function CanvasGrimoireExperience({
     if (event.button !== 0 || !event.isPrimary) return;
     const tracingRitual = visualRef.current.ritual.stage === "summoned";
     cancelAnimation();
+    cancelDrain();
     if (!tracingRitual) cancelTracingHint();
     const point = pointFromEvent(event);
     event.currentTarget.setPointerCapture(event.pointerId);
     drawingRef.current = true;
     lengthRef.current = 0;
-    visualRef.current.points = [{ ...point, width: 1.12, time: event.timeStamp }];
+    // The previous gesture stays on the vellum as an ordinary mark. The vellum
+    // drinks it later, together with everything else written here.
+    if (visualRef.current.ritual.stage === "idle" && visualRef.current.points.length > 0) {
+      visualRef.current.marks = [...visualRef.current.marks, visualRef.current.points].slice(-MARK_LIMIT);
+    }
+    poolSerialRef.current += 1;
+    const pool: InkPool = {
+      radius: INK_POOL_MIN * 0.6,
+      seed: poolSerialRef.current * 7.31 + 3.7,
+      born: performance.now(),
+      settledAt: null,
+      dropped: false,
+    };
+    spreadingPoolsRef.current.add(pool);
+    visualRef.current.points = [{ ...point, width: 1.12, time: event.timeStamp, pool }];
     if (visualRef.current.ritual.stage === "unsealed") {
       visualRef.current.ritual = { stage: "idle", sigil: null, mechanismPhase: 0, guideOpacity: 0 };
       visualRef.current.ritualStrokes = [];
@@ -4895,6 +5154,7 @@ export function CanvasGrimoireExperience({
       if (hintModeRef.current !== "tracing") startTracingHint();
     }
     paint();
+    spreadPools();
   };
 
   const moveInk = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -4904,6 +5164,9 @@ export function CanvasGrimoireExperience({
     if (!previous) return;
     const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
     if (distance < 1.4) return;
+    // The nib has left its pool: what pooled so far stays, and the line grows from it.
+    const pool = visualRef.current.points[0]?.pool;
+    if (pool && pool.settledAt === null) pool.settledAt = performance.now();
     const elapsed = Math.max(1, event.timeStamp - previous.time);
     const velocity = distance / elapsed;
     const pressure = event.pressure > 0 ? event.pressure : 0.42;
@@ -4925,9 +5188,24 @@ export function CanvasGrimoireExperience({
     const points = visualRef.current.points;
     const size = sizeRef.current;
     const ritual = visualRef.current.ritual;
+    // A nib that lifts where it touched down leaves its whole drop behind.
+    const pool = points[0]?.pool;
+    if (pool && pool.settledAt === null) {
+      pool.settledAt = performance.now();
+      pool.dropped = true;
+    }
+    if (pool) {
+      spreadingPoolsRef.current.add(pool);
+      spreadPools();
+    }
+    scheduleDrain();
     if (ritual.stage === "summoned" && ritual.sigil) {
       if (lengthRef.current >= 8 && points.length >= 2) {
         visualRef.current.ritualStrokes = [...visualRef.current.ritualStrokes, points];
+      } else if (pool) {
+        // Keep only the drop. A stray scribble would count against the
+        // accuracy of the tracing; a drop has no length to count.
+        visualRef.current.ritualStrokes = [...visualRef.current.ritualStrokes, [points[0]]];
       }
       visualRef.current.points = [];
       if (!gesturesTraceOctagram(visualRef.current.ritualStrokes, ritual.sigil, size.width, size.height)) {
@@ -4998,7 +5276,11 @@ export function CanvasGrimoireExperience({
       : { stage: "idle", sigil: null, mechanismPhase: 0, guideOpacity: 0 };
     visualRef.current.ritualStrokes = [];
     setAnnouncement(circle ? COPY[locale].circleReady : `${COPY[locale].awake}: ${cast.name}`);
-    if (circle) playRitualBurst(circle, "summon");
+    if (circle) {
+      // The circle stands alone: the vellum takes back the earlier marks.
+      drainMarks(false);
+      playRitualBurst(circle, "summon");
+    }
     const fadeGuideThenTrace = () => {
       if (!circle) return;
       if (reducedMotionRef.current) {
