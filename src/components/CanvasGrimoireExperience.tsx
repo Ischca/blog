@@ -17,6 +17,15 @@ import {
 } from "./grimoire/PhysicalInkTextRenderer";
 import { PhysicalParchmentRenderer } from "./grimoire/PhysicalParchmentRenderer";
 import {
+  clearScorchHintMark,
+  drawCircleMark,
+  renderScorchHintMark,
+  scrollArrowMark,
+  type ScorchHintBox,
+  type ScorchHintFrame,
+  type ScorchHintMark,
+} from "./grimoire/scorchHints";
+import {
   VersoExplodedView,
   type VersoPhase,
   type VersoTracePoint,
@@ -209,6 +218,34 @@ const MARK_DRAIN_DELAY_MS = 5200;
 const MARK_DRAIN_MS = 1500;
 /** Marks older than this give way at once, to keep each repaint cheap. */
 const MARK_LIMIT = 24;
+
+/** Idle time before the title page suggests scrolling, once its scorch settles. */
+const HINT_ARROW_FIRST_MS = 3200;
+/**
+ * Once the reader has turned a page they know how to scroll, so the circle
+ * comes first and the arrow only after a longer silence.
+ */
+const HINT_ARROW_LATER_MS = 12000;
+/** Idle time before the vellum suggests drawing a circle. */
+const HINT_CIRCLE_MS = 10500;
+const HINT_CIRCLE_AFTER_TURN_MS = 6000;
+// The hints move slowly and evenly, with no quick start or snap at the end:
+// they should feel like a rite, not like an interface nudging the reader.
+const HINT_ARROW_RISE_MS = 3200;
+const HINT_ARROW_HOLD_MS = 5000;
+const HINT_ARROW_SINK_MS = 2600;
+const HINT_CIRCLE_SWEEP_MS = 4600;
+const HINT_CIRCLE_HOLD_MS = 2400;
+const HINT_CIRCLE_SINK_MS = 3000;
+/** Even when the reader acts, a hint withdraws without hurry. */
+const HINT_DISMISS_MS = 700;
+/** Silence between two hints. */
+const HINT_REST_MS = 4000;
+/**
+ * The scorch level hints settle at: past the brown, so the line has charred
+ * dark and its toasted fringe has begun to fade, yet still short of ink.
+ */
+const HINT_HOLD = 0.72;
 
 // The skin is a material, not an animation. Baking it once keeps inscription
 // latency independent from the hundreds of fibres and pores in the surface.
@@ -2252,6 +2289,118 @@ function drawUserInk(context: CanvasRenderingContext2D, state: VisualState, laye
   drawInkStroke(context, state.points);
 }
 
+/** Where the scroll arrow sits: the foot of the vellum, below every folio's text. */
+function scrollArrowPlacement(size: CanvasSize) {
+  const bounds = paperBounds(size.width, size.height);
+  const narrow = size.width < 700;
+  const length = narrow ? 28 : 40;
+  return {
+    centerX: size.width / 2,
+    tipY: bounds.y + bounds.height - (narrow ? 16 : 24),
+    length,
+  };
+}
+
+/**
+ * The emptiest stretch of vellum on the settled folio, for the circle hint.
+ * Ink, text links and the arrow's place all count as occupied. Returns null
+ * when no circle large enough for the ritual fits.
+ */
+function findOpenVellum(inkCanvas: HTMLCanvasElement, size: CanvasSize, blocked: ScorchHintBox[]) {
+  const narrow = size.width < 700;
+  // Fine enough that a hairline seal still marks its cells as written.
+  const cell = 3;
+  const columns = Math.max(1, Math.floor(size.width / cell));
+  const rows = Math.max(1, Math.floor(size.height / cell));
+  const probe = document.createElement("canvas");
+  probe.width = columns;
+  probe.height = rows;
+  const context = probe.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+  // A scaled draw samples only a few source pixels per cell and can step over
+  // a hairline. Nine draws, shifted by a third of a cell each way, see every
+  // part of every cell.
+  context.imageSmoothingEnabled = true;
+  for (let shiftY = -1; shiftY <= 1; shiftY += 1) {
+    for (let shiftX = -1; shiftX <= 1; shiftX += 1) {
+      context.drawImage(inkCanvas, shiftX / 3, shiftY / 3, columns, rows);
+    }
+  }
+  const pixels = context.getImageData(0, 0, columns, rows).data;
+  const bounds = paperBounds(size.width, size.height);
+  const inset = 16;
+  const distance = new Float32Array(columns * rows);
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const x = (column + 0.5) * cell;
+      const y = (row + 0.5) * cell;
+      const index = row * columns + column;
+      const outside = x < bounds.x + inset
+        || x > bounds.x + bounds.width - inset
+        || y < bounds.y + inset
+        || y > bounds.y + bounds.height - inset;
+      const covered = blocked.some((box) => x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height);
+      distance[index] = outside || covered || pixels[index * 4 + 3] > 3 ? 0 : Number.POSITIVE_INFINITY;
+    }
+  }
+  // Two-pass chamfer distance in cells: 1 across, √2 diagonally.
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const index = row * columns + column;
+      let value = distance[index];
+      if (value === 0) continue;
+      if (column > 0) value = Math.min(value, distance[index - 1] + 1);
+      if (row > 0) {
+        value = Math.min(value, distance[index - columns] + 1);
+        if (column > 0) value = Math.min(value, distance[index - columns - 1] + Math.SQRT2);
+        if (column < columns - 1) value = Math.min(value, distance[index - columns + 1] + Math.SQRT2);
+      }
+      distance[index] = value;
+    }
+  }
+  for (let row = rows - 1; row >= 0; row -= 1) {
+    for (let column = columns - 1; column >= 0; column -= 1) {
+      const index = row * columns + column;
+      let value = distance[index];
+      if (value === 0) continue;
+      if (column < columns - 1) value = Math.min(value, distance[index + 1] + 1);
+      if (row < rows - 1) {
+        value = Math.min(value, distance[index + columns] + 1);
+        if (column < columns - 1) value = Math.min(value, distance[index + columns + 1] + Math.SQRT2);
+        if (column > 0) value = Math.min(value, distance[index + columns - 1] + Math.SQRT2);
+      }
+      distance[index] = value;
+    }
+  }
+  const preferredX = size.width * (narrow ? 0.5 : 0.64);
+  const preferredY = size.height * (narrow ? 0.62 : 0.56);
+  const pick = (minimumRadius: number, maximumRadius: number, padding: number) => {
+    // Beyond a little more than the largest circle needs, more room adds
+    // nothing; among such spots, the one nearest where a hand would naturally
+    // draw wins.
+    const enough = maximumRadius + padding + 24;
+    let bestScore = Number.NEGATIVE_INFINITY;
+    let best: { x: number; y: number; clearance: number } | null = null;
+    for (let index = 0; index < distance.length; index += 1) {
+      const clearance = distance[index] * cell;
+      if (!(clearance > minimumRadius + padding)) continue;
+      const x = (index % columns + 0.5) * cell;
+      const y = (Math.floor(index / columns) + 0.5) * cell;
+      const score = Math.min(clearance, enough) - Math.hypot(x - preferredX, y - preferredY) * 0.015;
+      if (score > bestScore) {
+        bestScore = score;
+        best = { x, y, clearance };
+      }
+    }
+    return best && { x: best.x, y: best.y, radius: Math.min(maximumRadius, best.clearance - padding) };
+  };
+  // First with room for the stain, the end barb and enough air that the
+  // circle reads as an invitation. A crowded folio still gets one, with less
+  // air; its smallest circle is still large enough for the ritual to read.
+  return pick(narrow ? 34 : 48, narrow ? 50 : 72, narrow ? 30 : 44)
+    ?? pick(narrow ? 29 : 40, narrow ? 44 : 60, narrow ? 12 : 20);
+}
+
 function sigilPoints(points: InkPoint[]) {
   if (points.length <= 9) return points;
   return Array.from({ length: 9 }, (_, index) => {
@@ -3566,6 +3715,20 @@ const STYLES = `
     display: block;
     pointer-events: none;
   }
+  /* Scorch multiplies the parchment, exactly as the shader's scorch tint does. */
+  .canvas-grimoire-scorch-hint {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+  }
+  .canvas-grimoire-stage[data-verso] .canvas-grimoire-scorch-hint {
+    visibility: hidden;
+  }
   .canvas-grimoire-stage[data-verso] .canvas-grimoire-surface,
   .canvas-grimoire-stage[data-verso] .canvas-grimoire-hint {
     transform-origin: 50% 50%;
@@ -4432,6 +4595,7 @@ export function CanvasGrimoireExperience({
   const descriptionId = useId();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hintCanvasRef = useRef<HTMLCanvasElement>(null);
+  const scorchHintCanvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const textRendererRef = useRef<PhysicalInkTextRenderer | null>(null);
@@ -4466,6 +4630,12 @@ export function CanvasGrimoireExperience({
   const poolSerialRef = useRef(0);
   const drainTimerRef = useRef<number | null>(null);
   const drainFrameRef = useRef<number | null>(null);
+  /** The last scroll, key, wheel or touch on the vellum. Hints wait for silence. */
+  const lastInputRef = useRef(0);
+  /** Set once the reader has drawn a circle; the vellum stops suggesting one. */
+  const circleLearnedRef = useRef(false);
+  /** Set once the reader has turned a page: the circle then comes first, the arrow later. */
+  const pageTurnedRef = useRef(false);
   const [scorchPhase, setScorchPhase] = useState<"dark" | "rising" | "settled">("dark");
   const [active, setActive] = useState(0);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -4887,6 +5057,7 @@ export function CanvasGrimoireExperience({
           drainFrameRef.current = null;
         }
         spreadingPoolsRef.current.clear();
+        pageTurnedRef.current = true;
         state.magicPhase = 0;
         state.awakened = false;
         state.ritual = { stage: "idle", sigil: null, mechanismPhase: 0, guideOpacity: 0 };
@@ -4896,7 +5067,10 @@ export function CanvasGrimoireExperience({
       // Text links belong to a settled folio. While one chapter's ink drains
       // and the next bleeds in, they step aside instead of floating over the
       // other chapter's text.
-      const inkMotion = transitionProgress > 0 ? "moving" : "still";
+      // Scrolling is not snapped, so a reader may stop just inside a turn. The
+      // first few hundredths of a turn barely touch the old page, and the last
+      // few leave the new one fully scorched, so both count as a still folio.
+      const inkMotion = transitionProgress > 0.04 && transitionProgress < 0.96 ? "moving" : "still";
       if (inkMotion !== lastInkMotion) {
         lastInkMotion = inkMotion;
         stage.dataset.inkMotion = inkMotion;
@@ -4929,7 +5103,8 @@ export function CanvasGrimoireExperience({
     const wrapper = stageRef.current;
     const canvas = canvasRef.current;
     const hintCanvas = hintCanvasRef.current;
-    if (!wrapper || !canvas || !hintCanvas) return;
+    const scorchHintCanvas = scorchHintCanvasRef.current;
+    if (!wrapper || !canvas || !hintCanvas || !scorchHintCanvas) return;
     const resize = () => {
       const rect = wrapper.getBoundingClientRect();
       const width = Math.max(1, rect.width);
@@ -4972,6 +5147,11 @@ export function CanvasGrimoireExperience({
       if (hintCanvas.width !== physicalWidth || hintCanvas.height !== physicalHeight) {
         hintCanvas.width = physicalWidth;
         hintCanvas.height = physicalHeight;
+      }
+      // Resizing clears this canvas; the hint scheduler rebuilds its marks.
+      if (scorchHintCanvas.width !== physicalWidth || scorchHintCanvas.height !== physicalHeight) {
+        scorchHintCanvas.width = physicalWidth;
+        scorchHintCanvas.height = physicalHeight;
       }
       setSize((current) => current.width === width && current.height === height ? current : { width, height });
       paint();
@@ -5082,6 +5262,225 @@ export function CanvasGrimoireExperience({
       if (frame !== null) cancelAnimationFrame(frame);
     };
   }, [paint]);
+
+  // Once the reader has been still for a while, the vellum suggests the next
+  // gesture: scrolling first, then drawing a circle. Any input sends the hint
+  // back into the skin at once.
+  useEffect(() => {
+    const stage = stageRef.current;
+    const overlay = scorchHintCanvasRef.current;
+    const context = overlay?.getContext("2d");
+    if (!stage || !overlay || !context) return;
+    type HintKind = "arrow" | "circle";
+    type Showing = {
+      kind: HintKind;
+      mark: ScorchHintMark;
+      started: number;
+      rise: number;
+      hold: number;
+      sink: number;
+      gain: number;
+      dismissedAt: number | null;
+      dismissFrame: ScorchHintFrame | null;
+      holdRendered: boolean;
+    };
+    let showing: Showing | null = null;
+    let restUntil = 0;
+    let lastKind: HintKind | null = null;
+    let settledAt: number | null = null;
+    let noRoom: string | null = null;
+    let frame: number | null = null;
+    let wake: number | null = null;
+    let lastRender = 0;
+    lastInputRef.current = performance.now();
+
+    const stopWaiting = () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      if (wake !== null) window.clearTimeout(wake);
+      frame = null;
+      wake = null;
+    };
+    const clearShowing = () => {
+      stopWaiting();
+      if (showing) clearScorchHintMark(context, showing.mark);
+      showing = null;
+    };
+    const ease = (progress: number) => 0.5 - 0.5 * Math.cos(Math.PI * progress);
+    const frameAt = (hint: Showing, now: number): ScorchHintFrame | null => {
+      const span = 1 + 1 / hint.gain;
+      const elapsed = now - hint.started;
+      if (reducedMotionRef.current) {
+        return elapsed < hint.rise + hint.hold + hint.sink
+          ? { front: span, gain: hint.gain, hold: HINT_HOLD, sinking: false }
+          : null;
+      }
+      if (elapsed < hint.rise) {
+        return { front: ease(elapsed / hint.rise) * span, gain: hint.gain, hold: HINT_HOLD, sinking: false };
+      }
+      if (elapsed < hint.rise + hint.hold) return { front: span, gain: hint.gain, hold: HINT_HOLD, sinking: false };
+      const sinking = (elapsed - hint.rise - hint.hold) / hint.sink;
+      if (sinking >= 1) return null;
+      return { front: ease(sinking) * span, gain: hint.gain, hold: HINT_HOLD, sinking: true };
+    };
+    const ensureFrame = () => {
+      if (wake !== null) {
+        window.clearTimeout(wake);
+        wake = null;
+      }
+      if (frame === null) frame = requestAnimationFrame(step);
+    };
+    const step = (now: number) => {
+      frame = null;
+      const hint = showing;
+      if (!hint) return;
+      if (stage.hasAttribute("data-verso")) {
+        clearShowing();
+        return;
+      }
+      let current: ScorchHintFrame | null;
+      if (hint.dismissedAt !== null && hint.dismissFrame) {
+        const progress = (now - hint.dismissedAt) / HINT_DISMISS_MS;
+        if (progress >= 1 || reducedMotionRef.current) {
+          clearShowing();
+          return;
+        }
+        current = { ...hint.dismissFrame, hold: hint.dismissFrame.hold * (1 - smoothstep(0, 1, progress)) };
+      } else {
+        current = frameAt(hint, now);
+        if (!current) {
+          clearShowing();
+          restUntil = now + HINT_REST_MS;
+          return;
+        }
+      }
+      const elapsed = now - hint.started;
+      const holding = hint.dismissedAt === null && (reducedMotionRef.current || (elapsed >= hint.rise && elapsed < hint.rise + hint.hold));
+      // The overlay is capped near 30fps and never repaints the parchment.
+      if (now - lastRender >= 32 || (holding && !hint.holdRendered)) {
+        lastRender = now;
+        renderScorchHintMark(context, hint.mark, current);
+        if (holding) hint.holdRendered = true;
+      }
+      if (holding && hint.holdRendered) {
+        // Nothing moves while a hint holds; wake when it starts to sink.
+        const remaining = reducedMotionRef.current
+          ? hint.rise + hint.hold + hint.sink - elapsed
+          : hint.rise + hint.hold - elapsed;
+        wake = window.setTimeout(() => {
+          wake = null;
+          ensureFrame();
+        }, Math.max(16, remaining));
+        return;
+      }
+      frame = requestAnimationFrame(step);
+    };
+
+    const onInput = () => {
+      const now = performance.now();
+      lastInputRef.current = now;
+      lastKind = null;
+      if (showing && showing.dismissedAt === null) {
+        showing.dismissFrame = frameAt(showing, now) ?? { front: 0, gain: showing.gain, hold: 0, sinking: false };
+        showing.dismissedAt = now;
+        ensureFrame();
+      }
+    };
+    const onResize = () => {
+      clearShowing();
+      noRoom = null;
+    };
+
+    const buildArrow = () => {
+      const size = sizeRef.current;
+      const placement = scrollArrowPlacement(size);
+      return scrollArrowMark(placement.centerX, placement.tipY, placement.length, size.dpr, size.height);
+    };
+    const buildCircle = () => {
+      const canvas = canvasRef.current;
+      const size = sizeRef.current;
+      if (!canvas) return null;
+      const stageRect = stage.getBoundingClientRect();
+      const blocked: ScorchHintBox[] = Array.from(stage.querySelectorAll(
+        ".canvas-grimoire-language, .canvas-grimoire-profile, .canvas-grimoire-product-links, .canvas-grimoire-action",
+      )).map((element) => {
+        const rect = element.getBoundingClientRect();
+        return { x: rect.left - stageRect.left - 8, y: rect.top - stageRect.top - 8, width: rect.width + 16, height: rect.height + 16 };
+      });
+      const arrow = scrollArrowPlacement(size);
+      blocked.push({ x: arrow.centerX - 44, y: arrow.tipY - arrow.length - 22, width: 88, height: arrow.length + 44 });
+      const spot = findOpenVellum(inkSurfaceLayer(canvas, size).canvas, size, blocked);
+      return spot ? drawCircleMark(spot.x, spot.y, spot.radius, size.dpr, size.height) : null;
+    };
+
+    const tick = () => {
+      if (showing) return;
+      const now = performance.now();
+      const state = visualRef.current;
+      const size = sizeRef.current;
+      if (state.scorch < 1) return;
+      settledAt ??= now;
+      const eligible = !stage.hasAttribute("data-scorch")
+        && !stage.hasAttribute("data-verso")
+        && stage.dataset.inkMotion !== "moving"
+        && document.visibilityState === "visible"
+        && !drawingRef.current
+        && state.ritual.stage === "idle"
+        && state.points.length === 0
+        && state.marks.length === 0
+        && state.draining.marks.length === 0
+        && size.width > 0;
+      if (!eligible || now < restUntil) return;
+      const idle = now - Math.max(lastInputRef.current, settledAt);
+      const lastPage = state.active >= VIEW_IDS.length - 1;
+      const arrowAfter = state.active === 0 && !pageTurnedRef.current ? HINT_ARROW_FIRST_MS : HINT_ARROW_LATER_MS;
+      const circleAfter = pageTurnedRef.current ? HINT_CIRCLE_AFTER_TURN_MS : HINT_CIRCLE_MS;
+      const arrowDue = !lastPage && idle >= arrowAfter;
+      const roomKey = `${state.active}:${size.width}x${size.height}`;
+      const circleDue = !circleLearnedRef.current && idle >= circleAfter && noRoom !== roomKey;
+      let kind: HintKind | null = null;
+      if (arrowDue && circleDue) kind = lastKind === "arrow" ? "circle" : "arrow";
+      else if (arrowDue) kind = "arrow";
+      else if (circleDue) kind = "circle";
+      if (!kind) return;
+      const mark = kind === "arrow" ? buildArrow() : buildCircle();
+      if (!mark) {
+        if (kind === "circle") noRoom = roomKey;
+        return;
+      }
+      lastKind = kind;
+      showing = kind === "arrow"
+        ? {
+            kind, mark, started: now, gain: 1 / 0.5,
+            rise: HINT_ARROW_RISE_MS, hold: HINT_ARROW_HOLD_MS, sink: HINT_ARROW_SINK_MS,
+            dismissedAt: null, dismissFrame: null, holdRendered: false,
+          }
+        : {
+            kind, mark, started: now, gain: 1 / 0.24,
+            rise: HINT_CIRCLE_SWEEP_MS, hold: HINT_CIRCLE_HOLD_MS, sink: HINT_CIRCLE_SINK_MS,
+            dismissedAt: null, dismissFrame: null, holdRendered: false,
+          };
+      lastRender = 0;
+      ensureFrame();
+    };
+
+    const interval = window.setInterval(tick, 200);
+    window.addEventListener("scroll", onInput, { passive: true });
+    window.addEventListener("wheel", onInput, { passive: true });
+    window.addEventListener("keydown", onInput);
+    window.addEventListener("resize", onResize);
+    stage.addEventListener("pointerdown", onInput);
+    stage.addEventListener("touchstart", onInput, { passive: true });
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("scroll", onInput);
+      window.removeEventListener("wheel", onInput);
+      window.removeEventListener("keydown", onInput);
+      window.removeEventListener("resize", onResize);
+      stage.removeEventListener("pointerdown", onInput);
+      stage.removeEventListener("touchstart", onInput);
+      clearShowing();
+    };
+  }, []);
 
   useEffect(() => () => {
     cancelAnimation();
@@ -5277,6 +5676,7 @@ export function CanvasGrimoireExperience({
     visualRef.current.ritualStrokes = [];
     setAnnouncement(circle ? COPY[locale].circleReady : `${COPY[locale].awake}: ${cast.name}`);
     if (circle) {
+      circleLearnedRef.current = true;
       // The circle stands alone: the vellum takes back the earlier marks.
       drainMarks(false);
       playRitualBurst(circle, "summon");
@@ -5376,6 +5776,7 @@ export function CanvasGrimoireExperience({
           onPointerUp={finishInk}
           onPointerCancel={finishInk}
         />
+        <canvas ref={scorchHintCanvasRef} className="canvas-grimoire-scorch-hint" aria-hidden="true" />
         <canvas ref={hintCanvasRef} className="canvas-grimoire-hint" aria-hidden="true" />
         {versoPhase === "surface" && (
           <a
